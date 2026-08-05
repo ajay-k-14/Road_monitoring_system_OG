@@ -1,0 +1,135 @@
+# Real-Time Driver & Road Monitoring with Accident Prevention System
+### Dept. of CSE (AI & ML) — KVGCE, Sullia DK | Project Code: BCI685
+
+---
+
+## 🗂 Project Structure
+
+```
+driver_monitor_system/
+├── app.py                    # Main Flask + SocketIO application
+├── config.py                 # All configuration constants
+├── requirements.txt          # Python dependencies
+├── database/
+│   └── db.py                 # SQLAlchemy models + DB helpers
+├── modules/
+│   ├── driver_monitor.py     # EAR / MAR / head-pose / phone detection
+│   ├── road_monitor.py       # Lane / YOLO / speed detection
+│   └── alert_system.py       # Alert rules, escalation, SMS
+├── templates/
+│   ├── base.html             # Nav + layout wrapper
+│   ├── index.html            # Main dashboard
+│   ├── login.html
+│   ├── register.html
+│   ├── history.html
+│   └── settings.html
+└── static/
+    ├── css/style.css         # Dark industrial HUD theme
+    └── js/app.js             # WebSocket + real-time UI
+```
+
+---
+
+## ⚙ Setup & Run
+
+### 1. Create virtual environment
+```bash
+python -m venv venv
+source venv/bin/activate        # Windows: venv\Scripts\activate
+```
+
+### 2. Install dependencies
+```bash
+pip install -r requirements.txt
+```
+
+> **Note**: `ultralytics` (YOLOv8) requires ~800 MB on first run to download model weights.  
+> The system works in **demo mode** if MediaPipe or YOLO is unavailable.
+
+### 3. Run the application
+```bash
+python app.py
+```
+
+Open browser at: **http://localhost:5000**
+
+### 4. Demo login
+```
+Email:    demo@dms.com
+Password: demo1234
+```
+
+---
+
+## 🎥 Camera Setup
+
+| Camera | Source Index | Purpose |
+|--------|-------------|---------|
+| Interior | `0` (default) | Driver face monitoring |
+| Exterior | `1` | Road / road hazard monitoring |
+
+Edit `app.py` line `monitoring_loop(interior_src=0, exterior_src=1)` to change indices.  
+If cameras are unavailable, the system runs in **demo mode** with simulated data.
+
+---
+
+## 🧠 Detection Features
+
+### Interior Camera (Driver)
+| Feature | Method | Threshold |
+|---------|--------|-----------|
+| Drowsiness | Eye Aspect Ratio (EAR) via MediaPipe | EAR < 0.25 for 20 frames |
+| Sleeping | Prolonged eye closure | > 3 seconds |
+| Yawning | Mouth Aspect Ratio (MAR) | MAR > 0.6 for 15 frames |
+| Phone Usage | Hand-near-ear heuristic | Wrist within 20% frame width of ear |
+| Distraction | Head pose (solvePnP) | Yaw > 30° or Pitch > 20° |
+
+### Exterior Camera (Road)
+| Feature | Method |
+|---------|--------|
+| Lane Deviation | Canny + Hough lines + ROI masking |
+| Vehicle Detection | YOLOv8 (classes: car, motorcycle, bus, truck) |
+| Pedestrian Detection | YOLOv8 (class: person) |
+| Obstacle Detection | YOLOv8 (other classes) |
+| Speed Estimation | Dense optical flow (Farneback) magnitude |
+
+---
+
+## 🚨 Alert System
+
+```
+Risk Detected → Audio beep + Visual overlay on dashboard
+      ↓
+   No response within 10 seconds
+      ↓
+Emergency SMS → All saved emergency contacts (via Twilio)
+```
+
+Configure Twilio in `.env`:
+```
+TWILIO_SID=ACxxxxxx
+TWILIO_TOKEN=xxxxxxxx
+TWILIO_FROM=+1xxxxxxxxxx
+```
+
+---
+
+## 📦 Dependencies Summary
+
+| Package | Purpose |
+|---------|---------|
+| Flask + Flask-SocketIO | Web server + real-time WebSocket |
+| OpenCV | Frame capture, Canny/Hough, optical flow |
+| MediaPipe | Face mesh (EAR, MAR, head pose) + Hands |
+| Ultralytics (YOLOv8) | Object detection (vehicles, pedestrians) |
+| SQLAlchemy | ORM for SQLite database |
+| Twilio (optional) | Emergency SMS |
+
+---
+
+## 🔮 Future Enhancements
+- IoT integration for vehicle CAN bus data
+- Cloud dashboard for fleet monitoring
+- Firebase real-time database sync
+- Autonomous braking integration
+- Mobile companion app

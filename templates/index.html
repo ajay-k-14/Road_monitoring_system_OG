@@ -1,0 +1,159 @@
+{% extends "base.html" %}
+{% block title %}Dashboard — DMS{% endblock %}
+
+{% block content %}
+<div class="dashboard">
+
+  <!-- ── Top Control Bar ──────────────────────────────── -->
+  <div class="control-bar">
+    <div class="system-status">
+      <div class="status-dot" id="statusDot"></div>
+      <span id="statusLabel">System Offline</span>
+    </div>
+
+    <!-- Camera Selectors -->
+    <div class="camera-selectors">
+      <div class="cam-select-group">
+        <label class="small-label">💻 Interior Camera</label>
+        <select id="interiorSrc" class="camera-select"></select>
+        <button class="btn btn-preview" onclick="previewSelectedCamera('interior')">Preview</button>
+      </div>
+      <div class="cam-select-group">
+        <label class="small-label">📸 Exterior Camera</label>
+        <select id="exteriorSrc" class="camera-select"></select>
+        <button class="btn btn-preview" onclick="previewSelectedCamera('exterior')">Preview</button>
+      </div>
+      <div class="cam-select-group">
+        <label class="small-label">Preview Output</label>
+        <video id="cameraPreview" autoplay playsinline muted
+               style="width:200px;height:128px;background:#000;border-radius:4px;object-fit:cover;border:1px solid var(--border2);"></video>
+      </div>
+      <div class="cam-select-actions">
+        <button class="btn" onclick="loadCameraDevices()">↺ Refresh</button>
+        <button class="btn btn-apply" onclick="applyCameraSelection()">Apply</button>
+      </div>
+    </div>
+    <!-- Status note for camera feedback -->
+    <div id="cameraNote" style="font-size:11px;color:var(--text-dim);align-self:flex-end;max-width:220px;line-height:1.4;"></div>
+
+    <div class="control-buttons">
+      <button id="btnStart" class="btn btn-start" onclick="startMonitoring()">▶ START</button>
+      <button id="btnStop"  class="btn btn-stop"  onclick="stopMonitoring()" disabled>■ STOP</button>
+      <button class="btn btn-logs" onclick="showServerLogs()">Logs</button>
+    </div>
+    <div class="fps-display">
+      <span class="label">FPS</span>
+      <span class="value mono" id="fpsVal">--</span>
+    </div>
+  </div>
+
+  <!-- ── Camera Feeds ─────────────────────────────────── -->
+  <div class="camera-grid">
+
+    <div class="camera-panel">
+      <div class="cam-header">
+        <span class="cam-label">◉ INTERIOR — DRIVER MONITORING</span>
+        <span class="cam-badge" id="driverBadge">OFFLINE</span>
+      </div>
+      <div class="cam-frame-wrap">
+        <img id="interiorFeed" class="cam-feed" alt="Interior Camera Feed"
+             style="background:#05050d;"/>
+      </div>
+      <div class="indicator-row">
+        <div class="indicator" id="ind-drowsy"><div class="ind-dot"></div><span>DROWSY</span></div>
+        <div class="indicator" id="ind-sleeping"><div class="ind-dot"></div><span>SLEEPING</span></div>
+        <div class="indicator" id="ind-yawning"><div class="ind-dot"></div><span>YAWNING</span></div>
+        <div class="indicator" id="ind-phone"><div class="ind-dot"></div><span>PHONE</span></div>
+        <div class="indicator" id="ind-distracted"><div class="ind-dot"></div><span>DISTRACTED</span></div>
+      </div>
+      <div class="metrics-row">
+        <div class="metric">
+          <span class="metric-label">EAR</span>
+          <div class="metric-bar-wrap"><div class="metric-bar" id="earBar"></div></div>
+          <span class="metric-val mono" id="earVal">--</span>
+        </div>
+        <div class="metric">
+          <span class="metric-label">Head Yaw</span>
+          <div class="head-gauge" id="yawGauge">
+            <div class="yaw-needle" id="yawNeedle"></div>
+          </div>
+          <span class="metric-val mono" id="yawVal">--°</span>
+        </div>
+        <div class="metric">
+          <span class="metric-label">Pitch</span>
+          <span class="metric-val mono" id="pitchVal">--°</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="camera-panel">
+      <div class="cam-header">
+        <span class="cam-label">◉ EXTERIOR — ROAD MONITORING</span>
+        <span class="cam-badge" id="roadBadge">OFFLINE</span>
+      </div>
+      <div class="cam-frame-wrap">
+        <img id="exteriorFeed" class="cam-feed" alt="Exterior Camera Feed"
+             style="background:#05050d;"/>
+      </div>
+      <div class="indicator-row">
+        <div class="indicator" id="ind-lane"><div class="ind-dot"></div><span>LANE DEV</span></div>
+        <div class="indicator" id="ind-overspeed"><div class="ind-dot"></div><span>OVER SPEED</span></div>
+        <div class="indicator" id="ind-pedestrian"><div class="ind-dot"></div><span>PEDESTRIAN</span></div>
+        <div class="indicator" id="ind-vehicle"><div class="ind-dot"></div><span>VEHICLE</span></div>
+        <div class="indicator" id="ind-obstacle"><div class="ind-dot"></div><span>OBSTACLE</span></div>
+      </div>
+      <div class="metrics-row">
+        <div class="metric speed-metric">
+          <span class="metric-label">Speed (est.)</span>
+          <div class="speed-circle" id="speedCircle">
+            <svg viewBox="0 0 100 100">
+              <circle cx="50" cy="50" r="42" class="speed-track"/>
+              <circle cx="50" cy="50" r="42" class="speed-fill" id="speedArc"/>
+            </svg>
+            <div class="speed-number" id="speedVal">0</div>
+            <div class="speed-unit">km/h</div>
+          </div>
+        </div>
+        <div class="metric">
+          <span class="metric-label">Lane Dev</span>
+          <span class="metric-val mono" id="devVal">0.0%</span>
+        </div>
+        <div class="metric">
+          <span class="metric-label">Objects</span>
+          <span class="metric-val mono" id="objVal">0</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Alert Panel ───────────────────────────────────── -->
+  <div class="alert-panel">
+    <div class="panel-header">
+      <span>◈ ACTIVE ALERTS</span>
+      <button class="btn-clear-alerts" onclick="clearAlerts()">Clear</button>
+    </div>
+    <div class="alert-list" id="alertList">
+      <div class="no-alerts">No active alerts</div>
+    </div>
+  </div>
+
+</div>
+
+<!-- Emergency Modal -->
+<div class="emergency-modal" id="emergencyModal" style="display:none">
+  <div class="modal-inner">
+    <div class="modal-icon">🚨</div>
+    <h2>EMERGENCY ALERT</h2>
+    <p id="emergencyMsg">Critical situation detected!</p>
+    <p class="modal-sub">Emergency contacts are being notified.</p>
+    <button class="btn btn-acknowledge" onclick="acknowledgeEmergency()">
+      ✓ I'M OK — Acknowledge
+    </button>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.5/socket.io.min.js"></script>
+<script src="{{ url_for('static', filename='js/app.js') }}"></script>
+{% endblock %}
