@@ -1,0 +1,124 @@
+{% extends "base.html" %}
+{% block title %}Settings — DMS{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h2>◇ Settings</h2>
+</div>
+
+<div class="settings-grid">
+
+  <!-- Emergency Contacts -->
+  <div class="settings-card">
+    <h3>🆘 Emergency Contacts</h3>
+    <p class="settings-desc">
+      If an un-acknowledged CRITICAL alert fires, an SMS will be sent to these contacts.
+    </p>
+    <div id="contactsList" class="contacts-list"></div>
+    <div class="add-contact-form">
+      <input type="text"  id="contactName"         placeholder="Contact Name"/>
+      <input type="tel"   id="contactPhone"         placeholder="+91-XXXXXXXXXX"/>
+      <input type="text"  id="contactRelationship"  placeholder="Relationship (e.g. Family)"/>
+      <button class="btn btn-add" onclick="addContact()">+ Add Contact</button>
+    </div>
+  </div>
+
+  <!-- Detection Thresholds -->
+  <div class="settings-card">
+    <h3>⚙ Detection Thresholds</h3>
+    <p class="settings-desc">Adjust sensitivity (saved to session; persisted in config.py).</p>
+    <div class="threshold-list">
+      <div class="threshold-item">
+        <label>EAR Threshold (drowsiness)</label>
+        <input type="range" min="0.10" max="0.40" step="0.01" value="0.25" id="earThreshold"/>
+        <span class="thresh-val" id="earThreshVal">0.25</span>
+      </div>
+      <div class="threshold-item">
+        <label>Consecutive Frames (EAR)</label>
+        <input type="range" min="5" max="40" step="1" value="20" id="earFrames"/>
+        <span class="thresh-val" id="earFramesVal">20</span>
+      </div>
+      <div class="threshold-item">
+        <label>Speed Alert (km/h)</label>
+        <input type="range" min="40" max="140" step="5" value="80" id="speedThreshold"/>
+        <span class="thresh-val" id="speedThreshVal">80</span>
+      </div>
+      <div class="threshold-item">
+        <label>Head Yaw Limit (°)</label>
+        <input type="range" min="10" max="60" step="5" value="30" id="yawThreshold"/>
+        <span class="thresh-val" id="yawThreshVal">30</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- System Info -->
+  <!-- <div class="settings-card">
+    <h3>ℹ System Information</h3>
+    <div class="info-grid">
+      <div class="info-row"><span>Department</span><span>CSE (AI&ML) KVGCE Sullia</span></div>
+      <div class="info-row"><span>Project</span><span>Real-Time Driver & Road Monitoring</span></div>
+      <div class="info-row"><span>Stack</span><span>Python · Flask · OpenCV · MediaPipe · YOLO</span></div>
+      <div class="info-row"><span>Database</span><span>SQLite (SQLAlchemy)</span></div>
+      <div class="info-row"><span>Version</span><span>1.0.0</span></div>
+    </div>
+  </div>
+
+</div> -->
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Load contacts
+async function loadContacts() {
+  const res  = await fetch('/api/emergency_contacts');
+  const list = await res.json();
+  const el   = document.getElementById('contactsList');
+  if (!list.length) {
+    el.innerHTML = '<p class="no-data">No contacts added yet.</p>';
+    return;
+  }
+  el.innerHTML = list.map(c => `
+    <div class="contact-item">
+      <div>
+        <strong>${c.name}</strong>
+        <span class="contact-rel">${c.relationship}</span>
+      </div>
+      <div class="contact-phone mono">${c.phone}</div>
+      <button class="btn-delete" onclick="deleteContact(${c.id})">✕</button>
+    </div>
+  `).join('');
+}
+
+async function addContact() {
+  const name  = document.getElementById('contactName').value.trim();
+  const phone = document.getElementById('contactPhone').value.trim();
+  const rel   = document.getElementById('contactRelationship').value.trim();
+  if (!name || !phone) return alert('Name and phone are required.');
+  await fetch('/api/emergency_contacts', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({name, phone, relationship: rel}),
+  });
+  document.getElementById('contactName').value = '';
+  document.getElementById('contactPhone').value = '';
+  document.getElementById('contactRelationship').value = '';
+  loadContacts();
+}
+
+async function deleteContact(id) {
+  if (!confirm('Remove this contact?')) return;
+  await fetch(`/api/emergency_contacts/${id}`, {method: 'DELETE'});
+  loadContacts();
+}
+
+// Threshold sliders
+document.querySelectorAll('input[type=range]').forEach(slider => {
+  const display = document.getElementById(slider.id + 'Val');
+  if (display) {
+    slider.addEventListener('input', () => display.textContent = slider.value);
+  }
+});
+
+loadContacts();
+</script>
+{% endblock %}

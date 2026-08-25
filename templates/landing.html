@@ -1,0 +1,448 @@
+{% extends "base.html" %}
+
+{% block title %}DRMS— Real-Time Driver & Road Monitoring{% endblock %}
+
+{% block extra_head %}
+<meta name="description" content="AI-powered vehicle safety system that monitors driver behavior and road conditions in real time to help prevent accidents."/>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/landing.css') }}"/>
+{% endblock %}
+
+{% block body_class %} class="landing-body"{% endblock %}
+
+{% block nav %}
+<!-- ══════════════════ LANDING NAV ══════════════════ -->
+<nav class="l-nav" id="lNav">
+  <div class="l-nav-inner">
+    <a href="#top" class="l-brand">
+      <span class="brand-icon">◈</span>
+      <span class="brand-name">DRMS</span>
+    </a>
+    <button class="l-burger" id="lBurger" aria-label="Toggle navigation menu" aria-expanded="false" aria-controls="lMenu">
+      <span></span><span></span><span></span>
+    </button>
+    <div class="l-links" id="lMenu">
+      <a href="#top" class="l-link">Home</a>
+      <a href="#features" class="l-link">Features</a>
+      <a href="#how-it-works" class="l-link">How It Works</a>
+      <a href="#technology" class="l-link">Technology</a>
+      <a href="#safety" class="l-link">Safety</a>
+      <!-- <a href="#about" class="l-link">About</a> -->
+      <a href="{{ url_for('dashboard') }}" class="l-btn l-btn-nav">Launch Dashboard</a>
+    </div>
+  </div>
+</nav>
+{% endblock %}
+
+{% block main %}
+<main id="top">
+
+  <!-- ══════════════════ HERO ══════════════════ -->
+  <section class="l-hero">
+    <div class="l-hero-grid" aria-hidden="true"></div>
+    <div class="l-hero-inner">
+      <div class="l-hero-text reveal">
+        <span class="l-badge">◉ AI-POWERED VEHICLE SAFETY</span>
+        <h1 class="l-h1">See the Risk.<br>Stop the Accident.</h1>
+        <p class="l-sub">Real-Time Driver &amp; Road Monitoring with AI-Powered Accident Prevention</p>
+        <p class="l-desc">An intelligent vehicle safety system that continuously monitors driver behavior and road conditions to detect risks before they become accidents.</p>
+        <div class="l-hero-actions">
+          <a href="{{ url_for('dashboard') }}" class="l-btn l-btn-primary">Launch Safety Dashboard →</a>
+          <a href="#features" class="l-btn l-btn-secondary">Explore Features ↓</a>
+        </div>
+      </div>
+
+      <div class="l-hero-visual reveal">
+        <!-- HUD dual-camera visualization -->
+        <svg viewBox="0 0 480 380" class="l-hud-svg" role="img" aria-label="Dual-camera AI detection visualization">
+          <defs>
+            <radialGradient id="scanGlow" cx="50%" cy="50%" r="50%">
+              <stop offset="0%" stop-color="#00c8ff" stop-opacity="0.25"/>
+              <stop offset="100%" stop-color="#00c8ff" stop-opacity="0"/>
+            </radialGradient>
+          </defs>
+          <circle cx="240" cy="190" r="170" fill="url(#scanGlow)"/>
+          <g stroke="#1e1e38" stroke-width="1">
+            <line x1="0" y1="95" x2="480" y2="95"/>
+            <line x1="0" y1="190" x2="480" y2="190"/>
+            <line x1="0" y1="285" x2="480" y2="285"/>
+            <line x1="120" y1="0" x2="120" y2="380"/>
+            <line x1="240" y1="0" x2="240" y2="380"/>
+            <line x1="360" y1="0" x2="360" y2="380"/>
+          </g>
+          <circle cx="240" cy="190" r="140" fill="none" stroke="#0090cc" stroke-width="1" opacity="0.35"/>
+          <circle cx="240" cy="190" r="100" fill="none" stroke="#0090cc" stroke-width="1" opacity="0.25"/>
+          <line x1="240" y1="190" x2="240" y2="50" stroke="#00c8ff" stroke-width="1.5" opacity="0.6" class="l-radar-sweep"/>
+
+          <!-- Driver camera frame (left) -->
+          <g class="l-cam-frame">
+            <rect x="34" y="70" width="150" height="110" rx="4" fill="#12121e" stroke="#00c8ff" stroke-width="1.5"/>
+            <text x="42" y="88" class="l-svg-label">◉ DRIVER CAM</text>
+            <circle cx="109" cy="130" r="22" fill="none" stroke="#00e676" stroke-width="1.5"/>
+            <rect x="86" y="110" width="46" height="46" fill="none" stroke="#00e676" stroke-width="1" stroke-dasharray="3 2"/>
+            <text x="42" y="168" class="l-svg-tag">EAR 0.31 · OK</text>
+          </g>
+
+          <!-- Road camera frame (right) -->
+          <g class="l-cam-frame l-cam-frame-delay">
+            <rect x="296" y="70" width="150" height="110" rx="4" fill="#12121e" stroke="#00c8ff" stroke-width="1.5"/>
+            <text x="304" y="88" class="l-svg-label">◉ ROAD CAM</text>
+            <rect x="316" y="108" width="38" height="26" fill="none" stroke="#ff8c00" stroke-width="1"/>
+            <rect x="365" y="118" width="50" height="30" fill="none" stroke="#ff8c00" stroke-width="1"/>
+            <line x1="330" y1="165" x2="310" y2="178" stroke="#00c8ff" stroke-width="1.5"/>
+            <line x1="400" y1="165" x2="420" y2="178" stroke="#00c8ff" stroke-width="1.5"/>
+            <text x="304" y="168" class="l-svg-tag">2 VEHICLES · LANE OK</text>
+          </g>
+
+          <!-- Convergence to AI engine -->
+          <path d="M109,180 L109,240 Q109,255 130,255 L215,255" fill="none" stroke="#252540" stroke-width="1.5"/>
+          <path d="M371,180 L371,240 Q371,255 350,255 L265,255" fill="none" stroke="#252540" stroke-width="1.5"/>
+          <rect x="180" y="255" width="120" height="40" rx="4" fill="#181828" stroke="#7c3aed" stroke-width="1.5"/>
+          <text x="240" y="279" text-anchor="middle" class="l-svg-label" fill="#c9a8ff">AI SAFETY ENGINE</text>
+
+          <line x1="240" y1="295" x2="240" y2="325" stroke="#252540" stroke-width="1.5"/>
+          <rect x="180" y="325" width="120" height="34" rx="4" fill="#181828" stroke="#00e676" stroke-width="1.5"/>
+          <text x="240" y="346" text-anchor="middle" class="l-svg-label" fill="#00e676">● SYSTEM READY</text>
+        </svg>
+      </div>
+    </div>
+
+    <!-- Live/demo status card -->
+    <div class="l-status-card reveal">
+      <div class="l-status-head">
+        <span class="l-status-dot"></span>
+        <span>SYSTEM STATUS</span>
+        <span class="l-demo-tag">DEMO MODE</span>
+      </div>
+      <ul class="l-status-list">
+        <li><span>Driver Monitoring</span><b class="ok">ACTIVE</b></li>
+        <li><span>Road Monitoring</span><b class="ok">ACTIVE</b></li>
+        <li><span>AI Detection</span><b class="ok">ACTIVE</b></li>
+        <li><span>Emergency System</span><b class="ready">READY</b></li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- ══════════════════ PROBLEM / TWO PERSPECTIVES ══════════════════ -->
+  <section class="l-section">
+    <div class="l-section-head reveal">
+      <span class="l-eyebrow">Complete Awareness</span>
+      <h2 class="l-h2">One System. Two Perspectives. Complete Awareness.</h2>
+      <p class="l-lead">Accidents rarely come from a single cause — driver distraction and road hazards both play a part. DRMS watches both sides at once, using two dedicated cameras and separate detection pipelines running in parallel.</p>
+    </div>
+    <div class="l-split reveal">
+      <div class="l-split-card">
+        <div class="l-split-icon">◉</div>
+        <h3>Driver Monitoring</h3>
+        <p class="l-split-sub">Interior camera</p>
+        <ul>
+          <li>Drowsiness</li>
+          <li>Sleeping</li>
+          <li>Yawning</li>
+          <li>Mobile phone usage</li>
+          <li>Driver distraction</li>
+          <li>Head orientation</li>
+        </ul>
+      </div>
+      <div class="l-split-divider">+</div>
+      <div class="l-split-card">
+        <div class="l-split-icon">◈</div>
+        <h3>Road Monitoring</h3>
+        <p class="l-split-sub">Exterior camera</p>
+        <ul>
+          <li>Lane deviation</li>
+          <li>Vehicles</li>
+          <li>Pedestrians</li>
+          <li>Obstacles</li>
+          <li>Road conditions</li>
+          <li>Speed estimation</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════════════ FEATURES ══════════════════ -->
+  <section class="l-section l-section-alt" id="features">
+    <div class="l-section-head reveal">
+      <span class="l-eyebrow">Capabilities</span>
+      <h2 class="l-h2">Intelligence Inside Every Frame</h2>
+    </div>
+    <div class="l-feature-grid reveal">
+      <div class="l-feature-card">
+        <div class="l-feature-icon">◉</div>
+        <h3>Driver Monitoring</h3>
+        <p>Monitors driver alertness and behavior continuously using computer vision.</p>
+      </div>
+      <div class="l-feature-card">
+        <div class="l-feature-icon">◔</div>
+        <h3>Drowsiness Detection</h3>
+        <p>Uses Eye Aspect Ratio (EAR) to identify prolonged eye closure and potential drowsiness.</p>
+      </div>
+      <div class="l-feature-card">
+        <div class="l-feature-icon">◒</div>
+        <h3>Yawning Detection</h3>
+        <p>Uses Mouth Aspect Ratio (MAR) to detect yawning behavior.</p>
+      </div>
+      <div class="l-feature-card">
+        <div class="l-feature-icon">◫</div>
+        <h3>Phone Usage Detection</h3>
+        <p>Detects potential mobile phone usage through hand-near-ear positioning.</p>
+      </div>
+      <div class="l-feature-card">
+        <div class="l-feature-icon">◇</div>
+        <h3>Distraction Detection</h3>
+        <p>Analyzes head pose (yaw / pitch) to identify prolonged driver distraction.</p>
+      </div>
+      <div class="l-feature-card">
+        <div class="l-feature-icon">═</div>
+        <h3>Lane Deviation Detection</h3>
+        <p>Uses Canny edge detection and Hough line transforms to identify lane departure.</p>
+      </div>
+      <div class="l-feature-card">
+        <div class="l-feature-icon">▣</div>
+        <h3>Vehicle Detection</h3>
+        <p>Uses YOLOv8 to detect cars, motorcycles, buses and trucks in the road view.</p>
+      </div>
+      <div class="l-feature-card">
+        <div class="l-feature-icon">◍</div>
+        <h3>Pedestrian Detection</h3>
+        <p>Identifies pedestrians in the road environment in real time.</p>
+      </div>
+      <div class="l-feature-card">
+        <div class="l-feature-icon">△</div>
+        <h3>Obstacle Detection</h3>
+        <p>Flags other detected objects that may represent road hazards.</p>
+      </div>
+      <div class="l-feature-card">
+        <div class="l-feature-icon">◎</div>
+        <h3>Speed Estimation</h3>
+        <p>Estimates vehicle movement using dense optical-flow analysis.</p>
+      </div>
+      <div class="l-feature-card">
+        <div class="l-feature-icon">◭</div>
+        <h3>Real-Time Alerts</h3>
+        <p>Delivers visual and audio warnings the moment a dangerous condition is detected.</p>
+      </div>
+      <div class="l-feature-card">
+        <div class="l-feature-icon">✉</div>
+        <h3>Emergency SMS</h3>
+        <p>If an alert isn't acknowledged within the configured response window, the system can trigger emergency SMS via the configured Twilio integration.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════════════ TWO-CAMERA ARCHITECTURE ══════════════════ -->
+  <section class="l-section">
+    <div class="l-section-head reveal">
+      <span class="l-eyebrow">Architecture</span>
+      <h2 class="l-h2">Two Cameras. One Safety System.</h2>
+    </div>
+    <div class="l-arch reveal">
+      <div class="l-arch-card">
+        <div class="l-arch-head">
+          <span class="l-arch-num">CAMERA 01</span>
+          <span class="l-arch-title">DRIVER · Interior</span>
+        </div>
+        <ol class="l-flow">
+          <li>Driver Face</li>
+          <li>Face Mesh</li>
+          <li>Eye &amp; Mouth Analysis</li>
+          <li>Head Pose</li>
+          <li>Behavior Detection</li>
+          <li>Risk Assessment</li>
+        </ol>
+      </div>
+      <div class="l-arch-card">
+        <div class="l-arch-head">
+          <span class="l-arch-num">CAMERA 02</span>
+          <span class="l-arch-title">ROAD · Exterior</span>
+        </div>
+        <ol class="l-flow">
+          <li>Road Feed</li>
+          <li>Lane Detection</li>
+          <li>YOLO Object Detection</li>
+          <li>Vehicle / Pedestrian / Obstacle ID</li>
+          <li>Speed Estimation</li>
+          <li>Road Risk Assessment</li>
+        </ol>
+      </div>
+    </div>
+    <div class="l-arch-converge reveal">
+      <div class="l-converge-line"></div>
+      <span class="l-converge-node l-converge-engine">AI SAFETY ENGINE</span>
+      <div class="l-converge-line"></div>
+      <span class="l-converge-node l-converge-alert">ALERT SYSTEM</span>
+    </div>
+  </section>
+
+  <!-- ══════════════════ HOW IT WORKS ══════════════════ -->
+  <section class="l-section l-section-alt" id="how-it-works">
+    <div class="l-section-head reveal">
+      <span class="l-eyebrow">Process</span>
+      <h2 class="l-h2">How It Works</h2>
+    </div>
+    <div class="l-steps reveal">
+      <div class="l-step">
+        <span class="l-step-num">01</span>
+        <h3>Capture</h3>
+        <p>Interior and exterior cameras capture the environment in real time.</p>
+      </div>
+      <div class="l-step">
+        <span class="l-step-num">02</span>
+        <h3>Analyze</h3>
+        <p>Computer vision models process each incoming frame.</p>
+      </div>
+      <div class="l-step">
+        <span class="l-step-num">03</span>
+        <h3>Detect</h3>
+        <p>AI identifies driver behavior patterns and road hazards.</p>
+      </div>
+      <div class="l-step">
+        <span class="l-step-num">04</span>
+        <h3>Assess</h3>
+        <p>The system evaluates the severity of any detected risk.</p>
+      </div>
+      <div class="l-step">
+        <span class="l-step-num">05</span>
+        <h3>Alert</h3>
+        <p>The driver receives an immediate warning; if unacknowledged, configured emergency contacts can be notified.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════════════ TECHNOLOGY ══════════════════ -->
+  <section class="l-section" id="technology">
+    <div class="l-section-head reveal">
+      <span class="l-eyebrow">Under the Hood</span>
+      <h2 class="l-h2">Built With Computer Vision &amp; Real-Time AI</h2>
+    </div>
+    <div class="l-tech-grid reveal">
+      <div class="l-tech-card">
+        <h3>OpenCV</h3>
+        <p>Real-time image processing, lane detection and optical flow.</p>
+      </div>
+      <div class="l-tech-card">
+        <h3>MediaPipe</h3>
+        <p>Driver face, eye, mouth and hand analysis for behavior detection.</p>
+      </div>
+      <div class="l-tech-card">
+        <h3>YOLOv8 (Ultralytics)</h3>
+        <p>Real-time object detection for vehicles, pedestrians and obstacles.</p>
+      </div>
+      <div class="l-tech-card">
+        <h3>Flask + Socket.IO</h3>
+        <p>Web application server and real-time WebSocket communication.</p>
+      </div>
+      <div class="l-tech-card">
+        <h3>SQLAlchemy</h3>
+        <p>Database access and persistent monitoring / alert history.</p>
+      </div>
+      <div class="l-tech-card">
+        <h3>Twilio</h3>
+        <p>Optional emergency SMS communication to saved contacts.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════════════ REAL-TIME PREVIEW ══════════════════ -->
+  <section class="l-section l-section-alt">
+    <div class="l-section-head reveal">
+      <span class="l-eyebrow">Product Preview</span>
+      <h2 class="l-h2">Designed for Real-Time Decisions</h2>
+      <p class="l-lead">Static preview — connect a camera and launch the dashboard to see live data.</p>
+    </div>
+    <div class="l-preview-grid reveal">
+      <div class="l-preview-card"><span class="l-preview-label">Driver Status</span><b>Alert</b></div>
+      <div class="l-preview-card"><span class="l-preview-label">Road Status</span><b class="warn">Warning</b></div>
+      <div class="l-preview-card"><span class="l-preview-label">Vehicle Speed</span><b>42 <small>km/h</small></b></div>
+      <div class="l-preview-card"><span class="l-preview-label">Lane Status</span><b class="ok">Centered</b></div>
+      <div class="l-preview-card"><span class="l-preview-label">Objects Detected</span><b>3 <small>vehicles</small></b></div>
+      <div class="l-preview-card"><span class="l-preview-label">Alert Level</span><b class="warn">Normal</b></div>
+    </div>
+  </section>
+
+  <!-- ══════════════════ SAFETY / ALERT WORKFLOW ══════════════════ -->
+  <section class="l-section" id="safety">
+    <div class="l-section-head reveal">
+      <span class="l-eyebrow">Response</span>
+      <h2 class="l-h2">When Risk Is Detected, The System Responds</h2>
+    </div>
+    <div class="l-safety-flow reveal">
+      <span class="l-safety-node">RISK DETECTED</span>
+      <span class="l-safety-arrow">↓</span>
+      <span class="l-safety-node">VISUAL + AUDIO ALERT</span>
+      <span class="l-safety-arrow">↓</span>
+      <span class="l-safety-node">DRIVER RESPONSE WINDOW</span>
+      <span class="l-safety-arrow">↓</span>
+      <span class="l-safety-node l-safety-warn">IF NO RESPONSE</span>
+      <span class="l-safety-arrow">↓</span>
+      <span class="l-safety-node l-safety-danger">EMERGENCY NOTIFICATION</span>
+      <span class="l-safety-arrow">↓</span>
+      <span class="l-safety-node">SAVED EMERGENCY CONTACTS</span>
+    </div>
+    <p class="l-disclaimer reveal">The current implementation uses a configurable response window and Twilio-based SMS integration. Emergency communication depends on configured services and network availability — delivery is not guaranteed.</p>
+  </section>
+
+  <!-- ══════════════════ METRICS ══════════════════ -->
+  <section class="l-section l-section-alt">
+    <div class="l-metrics reveal">
+      <div class="l-metric-card"><span class="l-metric-num">2</span><span class="l-metric-label">Monitoring Cameras</span></div>
+      <div class="l-metric-card"><span class="l-metric-num">2</span><span class="l-metric-label">Monitoring Domains</span></div>
+      <div class="l-metric-card"><span class="l-metric-num">24/7</span><span class="l-metric-label">Designed for Continuous Monitoring</span></div>
+      <div class="l-metric-card"><span class="l-metric-num">AI</span><span class="l-metric-label">Computer Vision Analysis</span></div>
+    </div>
+  </section>
+
+  <!-- ══════════════════ ABOUT ══════════════════
+  <section class="l-section" id="about">
+    <div class="l-about reveal">
+      <span class="l-eyebrow">Academic Project</span>
+      <p class="l-lead">DRMS combines computer vision, real-time processing, driver monitoring, road monitoring and automated safety alerts into one integrated platform.</p>
+      <div class="l-about-tags">
+        
+      </div>
+    </div>
+  </section> -->
+
+  <!-- ══════════════════ CTA ══════════════════ -->
+  <section class="l-cta">
+    <div class="l-cta-inner reveal">
+      <h2 class="l-h2">Ready to Monitor the Road Smarter?</h2>
+      <p class="l-lead">Experience an intelligent safety system designed to understand both the driver and the road in real time.</p>
+      <div class="l-hero-actions l-cta-actions">
+        <a href="{{ url_for('dashboard') }}" class="l-btn l-btn-primary">Launch Safety Dashboard →</a>
+        <a href="#features" class="l-btn l-btn-secondary">View System Features</a>
+      </div>
+    </div>
+  </section>
+
+</main>
+{% endblock %}
+
+{% block footer %}
+<!-- ══════════════════ LANDING FOOTER ══════════════════ -->
+<footer class="l-footer">
+  <div class="l-footer-inner">
+    <div class="l-footer-brand">
+      <span class="l-brand-row"><span class="brand-icon">◈</span><span class="brand-name">DRMS</span></span>
+      <p>Real-Time Driver &amp; Road Monitoring with Accident Prevention</p>
+    </div>
+    <div class="l-footer-links">
+      <a href="#top">Home</a>
+      <a href="#features">Features</a>
+      <a href="#how-it-works">How It Works</a>
+      <a href="#technology">Technology</a>
+      <a href="{{ url_for('dashboard') }}">Dashboard</a>
+      <a href="#about">About</a>
+      <a href="https://github.com/ajay-k-14/Road_monitoring_system_OG" target="_blank" rel="noopener">GitHub</a>
+    </div>
+  </div>
+  <div class="l-footer-bottom">
+    
+    <span>© 2026 DRMS</span>
+  </div>
+</footer>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/landing.js') }}"></script>
+{% endblock %}

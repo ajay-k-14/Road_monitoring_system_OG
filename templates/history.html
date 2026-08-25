@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block title %}Alert History — DMS{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h2>◈ Alert History</h2>
+  <span class="record-count">{{ alerts|length }} records</span>
+</div>
+
+<div class="history-table-wrap">
+  <table class="history-table">
+    <thead>
+      <tr>
+        <th>#</th>
+        <th>Timestamp</th>
+        <th>Type</th>
+        <th>Severity</th>
+        <th>Message</th>
+        <th>Responded</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% if alerts %}
+        {% for a in alerts %}
+        <tr class="row-{{ a.severity | lower }}">
+          <td class="mono">{{ a.id }}</td>
+          <td class="mono">{{ a.timestamp.strftime('%Y-%m-%d %H:%M:%S') }}</td>
+          <td><span class="type-badge">{{ a.alert_type }}</span></td>
+          <td><span class="severity-badge sev-{{ a.severity | lower }}">{{ a.severity }}</span></td>
+          <td>{{ a.message }}</td>
+          <td>{% if a.responded %}<span class="responded-yes">✓ Yes</span>{% else %}<span class="responded-no">✗ No</span>{% endif %}</td>
+        </tr>
+        {% endfor %}
+      {% else %}
+        <tr><td colspan="6" class="no-data">No alerts recorded yet.</td></tr>
+      {% endif %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

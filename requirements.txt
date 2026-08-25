@@ -1,0 +1,24 @@
+# ─── Web Framework ────────────────────────────────
+flask>=2.3.0
+flask-socketio>=5.3.6
+flask-login>=0.6.3
+eventlet>=0.35.1         # async mode for SocketIO
+
+# ─── Database ─────────────────────────────────────
+sqlalchemy>=2.0.0
+werkzeug>=2.3.0          # password hashing
+
+# ─── Computer Vision & AI ─────────────────────────
+opencv-python>=4.8.0
+numpy>=1.24.0
+mediapipe>=0.10.0        # face mesh + hand detection
+
+# ─── Object Detection (YOLO) ──────────────────────
+ultralytics>=8.0.0       # YOLOv8 (includes PyTorch)
+
+# ─── Optional: SMS Alerts ─────────────────────────
+twilio>=8.0.0          # Uncomment to enable SMS emergency alerts
+
+# ─── Utilities ────────────────────────────────────
+python-dotenv>=1.0.0
+
