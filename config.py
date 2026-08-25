@@ -39,9 +39,9 @@ class Config:
     # Seconds before un-responded alert escalates to SMS
     ALERT_ESCALATION_SECONDS = 10
     # Twilio credentials (optional — for real SMS). Use environment variables in production.
-    TWILIO_SID    = os.environ.get('TWILIO_SID', '')
-    TWILIO_TOKEN  = os.environ.get('TWILIO_TOKEN', '')
-    TWILIO_FROM   = os.environ.get('TWILIO_FROM', '')
+        # TWILIO_SID    = os.environ.get('TWILIO_SID', '')
+        # TWILIO_TOKEN  = os.environ.get('TWILIO_TOKEN', '')
+        # TWILIO_FROM   = os.environ.get('TWILIO_FROM', '')
 
     # ── Model Paths ──────────────────────────────────────
     YOLO_MODEL_PATH = os.environ.get('YOLO_MODEL_PATH', 'yolov8n.pt')
