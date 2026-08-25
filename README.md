@@ -1,5 +1,5 @@
 # Real-Time Driver & Road Monitoring with Accident Prevention System
-### Dept. of CSE (AI & ML) — KVGCE, Sullia DK | Project Code: BCI685
+
 
 ---
 
