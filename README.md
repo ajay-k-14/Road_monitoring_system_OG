@@ -106,7 +106,7 @@ Risk Detected → Audio beep + Visual overlay on dashboard
       ↓
    No response within 10 seconds
       ↓
-Emergency SMS → All saved emergency contacts (via Twilio)
+Emergency SMS → All saved emergency contacts 
 ```
 
 Configure Twilio in `.env`:
