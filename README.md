@@ -112,8 +112,6 @@ Emergency SMS → All saved emergency contacts
 Configure Twilio in `.env`:
 ```
 
----
-
 ## 📦 Dependencies Summary
 
 | Package | Purpose |
