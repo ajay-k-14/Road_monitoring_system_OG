@@ -34,8 +34,8 @@ login_manager.login_view = 'login'
 # ─────────────────────────────────────────────
 #  Global State
 # ─────────────────────────────────────────────
-driver_monitor    = DriverMonitor()
 road_monitor      = RoadMonitor()
+driver_monitor    = DriverMonitor(yolo_model=road_monitor._yolo)
 alert_system      = AlertSystem(socketio)
 monitoring_active = False
 monitor_thread    = None
@@ -320,8 +320,10 @@ def monitoring_loop(interior_src=0, exterior_src=1):
                 in_frame = _demo_frame("Interior — No Signal", (480, 640, 3), (30, 30, 60))
             else:
                 interior_fails = 0
+            interior_signal = bool(ret and in_frame is not None)
         else:
             in_frame = _demo_frame("Demo — Interior Camera", (480, 640, 3), (20, 30, 50))
+            interior_signal = False
 
         if interior_fails > 5:
             log_debug("Reconnecting interior…")
@@ -355,7 +357,7 @@ def monitoring_loop(interior_src=0, exterior_src=1):
             exterior_fails = 0
 
         # ── AI Processing ───────────────────────────────
-        driver_results = driver_monitor.process(in_frame)
+        driver_results = driver_monitor.process(in_frame, input_valid=interior_signal)
         road_results   = road_monitor.process(ext_frame)
         annotated_in   = driver_monitor.annotate(in_frame.copy(),  driver_results)
         annotated_ext  = road_monitor.annotate(ext_frame.copy(), road_results)

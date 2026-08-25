@@ -24,6 +24,7 @@ class Alert:
     type:     str
     severity: str    # LOW | MEDIUM | HIGH | CRITICAL
     message:  str
+    source:   str     # INTERIOR or EXTERIOR
     ts:       float  = field(default_factory=time.time)
     responded: bool  = False
 
@@ -78,13 +79,13 @@ class AlertSystem:
         for (key, val, atype, severity, msg) in DRIVER_RULES:
             if driver_results.get(key) == val:
                 if self._should_fire(atype, severity, now):
-                    alert = self._fire(atype, severity, msg)
+                    alert = self._fire(atype, severity, msg, 'INTERIOR')
                     alerts.append(self._to_dict(alert))
 
         for (key, val, atype, severity, msg) in ROAD_RULES:
             if road_results.get(key) == val:
                 if self._should_fire(atype, severity, now):
-                    alert = self._fire(atype, severity, msg)
+                    alert = self._fire(atype, severity, msg, 'EXTERIOR')
                     alerts.append(self._to_dict(alert))
 
         # Pedestrian proximity alert
@@ -93,7 +94,7 @@ class AlertSystem:
             atype = 'PEDESTRIAN_DETECTED'
             if self._should_fire(atype, 'HIGH', now):
                 msg = f'⚠ {n} pedestrian(s) detected nearby!'
-                alert = self._fire(atype, 'HIGH', msg)
+                alert = self._fire(atype, 'HIGH', msg, 'EXTERIOR')
                 alerts.append(self._to_dict(alert))
 
         return alerts
@@ -113,9 +114,10 @@ class AlertSystem:
         last     = self._last_fired.get(atype, 0)
         return (now - last) >= cooldown
 
-    def _fire(self, atype: str, severity: str, msg: str) -> Alert:
+    def _fire(self, atype: str, severity: str, msg: str, source: str) -> Alert:
         alert_id = f"{atype}_{int(time.time() * 1000)}"
-        alert    = Alert(id=alert_id, type=atype, severity=severity, message=msg)
+        alert    = Alert(id=alert_id, type=atype, severity=severity,
+                 message=msg, source=source)
         self._last_fired[atype] = time.time()
 
         # Emit to dashboard
@@ -148,6 +150,7 @@ class AlertSystem:
                 'alert_id': alert.id,
                 'message':  alert.message,
                 'type':     alert.type,
+                'source':   alert.source,
             })
 
         # Twilio SMS (only if credentials configured)
@@ -189,5 +192,6 @@ class AlertSystem:
             'type':     alert.type,
             'severity': alert.severity,
             'message':  alert.message,
+            'source':   alert.source,
             'ts':       alert.ts,
         }

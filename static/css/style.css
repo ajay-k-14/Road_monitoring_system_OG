@@ -306,6 +306,26 @@ html, body {
   background: var(--panel); border: 1px solid var(--border);
   border-radius: var(--radius); overflow: hidden;
 }
+.camera-warning-session {
+  margin: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  flex: 0 0 auto;
+  background: rgba(0, 0, 0, 0.18);
+}
+.interior-alert-panel { border-color: rgba(255, 140, 0, 0.55); }
+.interior-alert-panel .panel-header {
+  color: var(--warn);
+  border-bottom-color: rgba(255, 140, 0, 0.35);
+  background: rgba(255, 140, 0, 0.08);
+}
+.exterior-alert-panel { border-color: rgba(0, 200, 255, 0.55); }
+.exterior-alert-panel .panel-header {
+  color: var(--accent);
+  border-bottom-color: rgba(0, 200, 255, 0.35);
+  background: rgba(0, 200, 255, 0.08);
+}
 .panel-header {
   display: flex; align-items: center; justify-content: space-between;
   padding: 8px 14px;
@@ -362,6 +382,7 @@ html, body {
 }
 .alert-item .ack-btn:hover { border-color: var(--success); color: var(--success); }
 
+
 /* Emergency Modal */
 .emergency-modal {
   position: fixed; inset: 0; z-index: 9999;
@@ -371,9 +392,9 @@ html, body {
 }
 .modal-inner {
   background: var(--panel); border: 2px solid var(--danger);
-  border-radius: 8px; padding: 40px 48px; text-align: center;
+  border-radius: 8px; padding: 28px 32px; text-align: center;
   box-shadow: 0 0 60px rgba(255,34,68,0.3);
-  max-width: 440px;
+  width: min(960px, calc(100vw - 32px));
   animation: modalPop 0.4s cubic-bezier(.34,1.56,.64,1);
 }
 @keyframes modalPop {
@@ -391,6 +412,29 @@ html, body {
 }
 .modal-inner p { font-size: 15px; line-height: 1.5; color: var(--text); margin-bottom: 8px; }
 .modal-sub { color: var(--text-dim) !important; font-size: 13px !important; }
+.emergency-sessions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  text-align: left;
+}
+.emergency-session {
+  padding: 18px;
+  border: 1px solid var(--border2);
+  border-radius: var(--radius);
+  background: var(--bg2);
+  opacity: 0.55;
+}
+.emergency-session.active { opacity: 1; }
+.interior-emergency.active { border-color: var(--warn); box-shadow: 0 0 24px rgba(255,140,0,0.2); }
+.exterior-emergency.active { border-color: var(--accent); box-shadow: 0 0 24px rgba(0,200,255,0.2); }
+.emergency-session h3 {
+  font-family: var(--font-head); font-size: 16px; letter-spacing: 2px;
+  margin-bottom: 12px;
+}
+.interior-emergency h3 { color: var(--warn); }
+.exterior-emergency h3 { color: var(--accent); }
+.modal-notice { margin-top: 18px; }
 .btn-acknowledge {
   margin-top: 20px; padding: 12px 32px;
   background: var(--success); border: none; color: var(--bg);
@@ -400,6 +444,9 @@ html, body {
 }
 .btn-acknowledge:hover {
   transform: translateY(-2px); box-shadow: 0 6px 20px rgba(0,230,118,0.4);
+}
+@media (max-width: 700px) {
+  .emergency-sessions { grid-template-columns: 1fr; }
 }
 
 /* ── AUTH PAGES ─────────────────────────────────────────────── */

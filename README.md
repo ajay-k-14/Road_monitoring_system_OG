@@ -34,21 +34,25 @@ driver_monitor_system/
 
 ### 1. Create virtual environment
 ```bash
-python -m venv venv
-source venv/bin/activate        # Windows: venv\Scripts\activate
+py -3.12 -m venv venv
+venv\Scripts\activate
 ```
+
+Use Python 3.11 or 3.12. The legacy MediaPipe Solutions API used by this project
+is not available in the newest MediaPipe builds for Python 3.13.
 
 ### 2. Install dependencies
 ```bash
-pip install -r requirements.txt
+py -3.12 -m pip install -r requirements.txt
 ```
 
 > **Note**: `ultralytics` (YOLOv8) requires ~800 MB on first run to download model weights.  
-> The system works in **demo mode** if MediaPipe or YOLO is unavailable.
+> Driver alerts are disabled when MediaPipe or the camera is unavailable; the system does not
+> generate synthetic driver detections.
 
 ### 3. Run the application
 ```bash
-python app.py
+py -3.12 app.py
 ```
 
 Open browser at: **http://localhost:5000**

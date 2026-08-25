@@ -11,7 +11,7 @@ werkzeug>=2.3.0          # password hashing
 # ─── Computer Vision & AI ─────────────────────────
 opencv-python>=4.8.0
 numpy>=1.24.0
-mediapipe>=0.10.0        # face mesh + hand detection
+mediapipe==0.10.21      # legacy face mesh + hand detection API; use Python 3.11/3.12
 
 # ─── Object Detection (YOLO) ──────────────────────
 ultralytics>=8.0.0       # YOLOv8 (includes PyTorch)

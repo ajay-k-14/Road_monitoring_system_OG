@@ -29,12 +29,18 @@ try:
     MEDIAPIPE_OK = True
 except ImportError:
     MEDIAPIPE_OK = False
-    print("[DriverMonitor] MediaPipe not installed — running in demo mode")
+    print("[DriverMonitor] MediaPipe legacy Solutions API unavailable — driver detection disabled")
 except Exception as exc:
     MEDIAPIPE_OK = False
-    print(f"[DriverMonitor] MediaPipe import failed ({exc}) — running in demo mode")
+    print(f"[DriverMonitor] MediaPipe initialization failed ({exc}) — driver detection disabled")
 
 from config import Config
+
+try:
+    from ultralytics import YOLO
+    YOLO_OK = True
+except ImportError:
+    YOLO_OK = False
 
 # ─── MediaPipe indices ────────────────────────────────────────────
 # Face mesh landmarks used for EAR (both eyes)
@@ -58,15 +64,17 @@ FACE_2D_IDX = [1, 152, 263, 33, 287, 57]   # nose, chin, L-eye, R-eye, L-mouth, 
 class DriverMonitor:
     """Real-time driver behaviour monitor."""
 
-    def __init__(self):
+    def __init__(self, yolo_model=None):
         self.cfg = Config()
         self._fps_counter = deque(maxlen=30)
         self.fps = 0.0
 
         # Counters
-        self._ear_frames   = 0
-        self._mar_frames   = 0
-        self._sleep_start  = None
+        self._eyes_closed_start = None
+        self._yawn_start        = None
+        self._distraction_start = None
+        self._phone_start       = None
+        self._phone_detector    = yolo_model
 
         # State memory (for UI)
         self._last_results = {}
@@ -89,11 +97,18 @@ class DriverMonitor:
             self._face_mesh = None
             self._hands     = None
 
+        if self._phone_detector is None and YOLO_OK:
+            try:
+                self._phone_detector = YOLO(self.cfg.YOLO_MODEL_PATH)
+                print(f"[DriverMonitor] Phone detector loaded: {self.cfg.YOLO_MODEL_PATH}")
+            except Exception as exc:
+                print(f"[DriverMonitor] Phone detector unavailable: {exc}")
+
     # ─────────────────────────────────────────────
     #  Public API
     # ─────────────────────────────────────────────
 
-    def process(self, frame: np.ndarray) -> dict:
+    def process(self, frame: np.ndarray, input_valid: bool = True) -> dict:
         """Run all detectors on a BGR frame; return result dict."""
         t0 = time.time()
         h, w = frame.shape[:2]
@@ -104,6 +119,8 @@ class DriverMonitor:
             'sleeping':     False,
             'yawning':      False,
             'phone_usage':  False,
+            'phone_detected': False,
+            'phone_objects': [],
             'distracted':   False,
             'ear':          None,
             'mar':          None,
@@ -111,74 +128,116 @@ class DriverMonitor:
             'head_pitch':   None,
             'head_roll':    None,
             'face_detected': False,
+            'monitoring_valid': bool(input_valid),
         }
 
-        if not MEDIAPIPE_OK:
-            # Demo mode — simulate cycling states
-            t = time.time() % 60
-            results['drowsy']      = (10 < t < 15)
-            results['phone_usage'] = (30 < t < 38)
-            results['distracted']  = (50 < t < 55)
-            results['ear']         = round(0.30 - 0.10 * (1 if results['drowsy'] else 0), 3)
-            results['head_yaw']    = 25 if results['distracted'] else 5
-            results['face_detected'] = True
+        if not input_valid or not MEDIAPIPE_OK:
+            self._reset_temporal_state()
+            results['monitoring_valid'] = False
             return results
+
+        results['phone_objects'] = self._detect_phone_objects(frame)
+        results['phone_detected'] = bool(results['phone_objects'])
 
         # ── Face Mesh ──────────────────────────────────────
         face_out = self._face_mesh.process(rgb)
+        face_box = None
         if face_out.multi_face_landmarks:
             lm = face_out.multi_face_landmarks[0].landmark
             results['face_detected'] = True
 
             coords = np.array([[p.x * w, p.y * h] for p in lm])
+            face_box = (
+                int(coords[:, 0].min()), int(coords[:, 1].min()),
+                int(coords[:, 0].max()), int(coords[:, 1].max())
+            )
+            face_width = coords[:, 0].max() - coords[:, 0].min()
+            if face_width < w * self.cfg.MIN_FACE_WIDTH_RATIO:
+                self._reset_temporal_state()
+                results['face_detected'] = False
+                self._last_results = results
+                return results
 
             # EAR
             ear = self._compute_ear(coords)
             results['ear'] = round(ear, 3)
             if ear < self.cfg.EAR_THRESHOLD:
-                self._ear_frames += 1
-                if self._sleep_start is None:
-                    self._sleep_start = time.time()
+                if self._eyes_closed_start is None:
+                    self._eyes_closed_start = time.time()
             else:
-                self._ear_frames = 0
-                self._sleep_start = None
+                self._eyes_closed_start = None
 
-            results['drowsy']   = self._ear_frames >= self.cfg.EAR_CONSEC_FRAMES
-            results['sleeping'] = (
-                self._sleep_start is not None and
-                (time.time() - self._sleep_start) > 3.0
-            )
+            closed_for = (time.time() - self._eyes_closed_start
+                          if self._eyes_closed_start is not None else 0.0)
+            results['drowsy'] = closed_for >= self.cfg.DROWSY_SECONDS
+            results['sleeping'] = closed_for >= self.cfg.SLEEPING_SECONDS
 
             # MAR / Yawn
             mar = self._compute_mar(coords)
             results['mar'] = round(mar, 3)
             if mar > self.cfg.MAR_THRESHOLD:
-                self._mar_frames += 1
+                if self._yawn_start is None:
+                    self._yawn_start = time.time()
             else:
-                self._mar_frames = max(0, self._mar_frames - 1)
-            results['yawning'] = self._mar_frames >= self.cfg.MAR_CONSEC_FRAMES
+                self._yawn_start = None
+            yawn_for = (time.time() - self._yawn_start
+                        if self._yawn_start is not None else 0.0)
+            results['yawning'] = yawn_for >= self.cfg.YAWN_SECONDS
 
             # Head pose
             yaw, pitch, roll = self._head_pose(coords, w, h)
             results['head_yaw']   = round(yaw,   1)
             results['head_pitch'] = round(pitch, 1)
             results['head_roll']  = round(roll,  1)
-            results['distracted'] = (
+            pose_out_of_range = (
                 abs(yaw)   > self.cfg.HEAD_YAW_THRESHOLD or
                 abs(pitch) > self.cfg.HEAD_PITCH_THRESHOLD
             )
+            if pose_out_of_range:
+                if self._distraction_start is None:
+                    self._distraction_start = time.time()
+            else:
+                self._distraction_start = None
+            results['distracted'] = (
+                self._distraction_start is not None and
+                time.time() - self._distraction_start >= self.cfg.DISTRACTION_SECONDS
+            )
         else:
-            # No face — possible distraction / looking away
-            self._ear_frames = 0
-            results['distracted'] = True
+            # Tracking loss is unknown, not proof of distraction.
+            self._reset_temporal_state()
 
         # ── Hand detection — phone usage heuristic ─────────
         hand_out = self._hands.process(rgb)
         if hand_out.multi_hand_landmarks and face_out.multi_face_landmarks:
-            results['phone_usage'] = self._detect_phone_usage(
+            hand_near_face = self._detect_phone_usage(
                 hand_out.multi_hand_landmarks,
                 face_out.multi_face_landmarks[0].landmark,
                 w, h
+            )
+            phone_near_face = hand_near_face or self._phone_overlaps_face(
+                results['phone_objects'], face_box, w, h
+            )
+            if phone_near_face and results['phone_detected']:
+                if self._phone_start is None:
+                    self._phone_start = time.time()
+            else:
+                self._phone_start = None
+            results['phone_usage'] = (
+                self._phone_start is not None and
+                time.time() - self._phone_start >= self.cfg.PHONE_SECONDS
+            )
+        else:
+            phone_near_face = self._phone_overlaps_face(
+                results['phone_objects'], face_box, w, h
+            )
+            if phone_near_face:
+                if self._phone_start is None:
+                    self._phone_start = time.time()
+            else:
+                self._phone_start = None
+            results['phone_usage'] = (
+                self._phone_start is not None and
+                time.time() - self._phone_start >= self.cfg.PHONE_SECONDS
             )
 
         # ── FPS ─────────────────────────────────────────────
@@ -189,6 +248,54 @@ class DriverMonitor:
 
         self._last_results = results
         return results
+
+    def _detect_phone_objects(self, frame):
+        if self._phone_detector is None:
+            return []
+        try:
+            detections = self._phone_detector.predict(
+                frame,
+                conf=self.cfg.PHONE_YOLO_CONFIDENCE,
+                classes=[67],
+                imgsz=640,
+                verbose=False,
+            )
+            phones = []
+            for detection in detections:
+                for box in detection.boxes:
+                    x1, y1, x2, y2 = map(int, box.xyxy[0])
+                    phones.append({
+                        'label': 'Cell phone',
+                        'conf': float(box.conf[0]),
+                        'box': (x1, y1, x2, y2),
+                        'class': 67,
+                    })
+            return phones
+        except Exception:
+            return []
+
+    @staticmethod
+    def _phone_overlaps_face(phone_objects, face_box, w, h):
+        if not phone_objects or face_box is None:
+            return False
+        fx1, fy1, fx2, fy2 = face_box
+        pad_x = int(w * 0.08)
+        pad_y = int(h * 0.12)
+        fx1 -= pad_x
+        fy1 -= pad_y
+        fx2 += pad_x
+        fy2 += pad_y
+        for phone in phone_objects:
+            x1, y1, x2, y2 = phone['box']
+            if x1 < fx2 and x2 > fx1 and y1 < fy2 and y2 > fy1:
+                return True
+        return False
+
+    def _reset_temporal_state(self):
+        self._eyes_closed_start = None
+        self._yawn_start = None
+        self._distraction_start = None
+        self._phone_start = None
 
     # ─────────────────────────────────────────────
     #  Annotation
@@ -211,6 +318,13 @@ class DriverMonitor:
                     cv2.FONT_HERSHEY_SIMPLEX, 0.55, (180, 255, 180), 1)
 
         # Alert overlays
+        for phone in results.get('phone_objects', []):
+            x1, y1, x2, y2 = phone['box']
+            cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 0, 255), 2)
+            cv2.putText(frame, f"Cell phone {phone['conf']:.0%}",
+                        (x1, max(45, y1 - 6)), cv2.FONT_HERSHEY_SIMPLEX, 0.5,
+                        (0, 0, 255), 1)
+
         alerts_active = []
         if results['sleeping']:
             alerts_active.append(('SLEEPING!', (0, 0, 200)))
@@ -308,7 +422,7 @@ class DriverMonitor:
                 np.array([ear_l.x * w, ear_l.y * h]),
                 np.array([ear_r.x * w, ear_r.y * h]),
             ]
-            threshold = w * 0.20
+            threshold = w * self.cfg.PHONE_DISTANCE_RATIO
 
             for hand_lm in hand_landmarks_list:
                 wrist = hand_lm.landmark[0]   # index 0 is wrist

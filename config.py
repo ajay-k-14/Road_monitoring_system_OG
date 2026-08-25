@@ -12,14 +12,20 @@ class Config:
     # ── Driver Monitor Thresholds ────────────────────────
     # Eye Aspect Ratio: eyes closed below this value
     EAR_THRESHOLD       = 0.25
-    # Consecutive frames before drowsiness alert fires
-    EAR_CONSEC_FRAMES   = 20
+    # Time-based persistence avoids changing behavior when FPS changes.
+    DROWSY_SECONDS      = 1.5
+    SLEEPING_SECONDS     = 3.0
     # Mouth Aspect Ratio: yawning above this value
     MAR_THRESHOLD       = 0.6
-    MAR_CONSEC_FRAMES   = 15
+    YAWN_SECONDS         = 1.0
     # Head pose: degrees before "distracted" fires
     HEAD_PITCH_THRESHOLD = 20   # nodding forward/backward
     HEAD_YAW_THRESHOLD   = 30   # turning left/right
+    DISTRACTION_SECONDS  = 0.8
+    PHONE_SECONDS         = 0.7
+    PHONE_DISTANCE_RATIO = 0.12
+    PHONE_YOLO_CONFIDENCE = 0.35
+    MIN_FACE_WIDTH_RATIO = 0.12
 
     # ── Road Monitor Thresholds ──────────────────────────
     # Lane deviation: fraction of frame width

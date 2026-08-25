@@ -84,6 +84,15 @@
           <span class="metric-val mono" id="pitchVal">--°</span>
         </div>
       </div>
+      <div class="camera-warning-session interior-alert-panel">
+        <div class="panel-header">
+          <span>◈ INTERIOR WARNING SESSION — DRIVER</span>
+          <button class="btn-clear-alerts" onclick="clearAlerts('interiorAlertList')">Clear</button>
+        </div>
+        <div class="alert-list" id="interiorAlertList">
+          <div class="no-alerts">No driver warnings</div>
+        </div>
+      </div>
     </div>
 
     <div class="camera-panel">
@@ -123,17 +132,15 @@
           <span class="metric-val mono" id="objVal">0</span>
         </div>
       </div>
-    </div>
-  </div>
-
-  <!-- ── Alert Panel ───────────────────────────────────── -->
-  <div class="alert-panel">
-    <div class="panel-header">
-      <span>◈ ACTIVE ALERTS</span>
-      <button class="btn-clear-alerts" onclick="clearAlerts()">Clear</button>
-    </div>
-    <div class="alert-list" id="alertList">
-      <div class="no-alerts">No active alerts</div>
+      <div class="camera-warning-session exterior-alert-panel">
+        <div class="panel-header">
+          <span>◈ EXTERIOR WARNING SESSION — ROAD</span>
+          <button class="btn-clear-alerts" onclick="clearAlerts('exteriorAlertList')">Clear</button>
+        </div>
+        <div class="alert-list" id="exteriorAlertList">
+          <div class="no-alerts">No road warnings</div>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -144,11 +151,25 @@
   <div class="modal-inner">
     <div class="modal-icon">🚨</div>
     <h2>EMERGENCY ALERT</h2>
-    <p id="emergencyMsg">Critical situation detected!</p>
-    <p class="modal-sub">Emergency contacts are being notified.</p>
-    <button class="btn btn-acknowledge" onclick="acknowledgeEmergency()">
-      ✓ I'M OK — Acknowledge
-    </button>
+    <div class="emergency-sessions">
+      <div class="emergency-session interior-emergency" id="interiorEmergencyBox">
+        <h3>INTERIOR — DRIVER</h3>
+        <p id="interiorEmergencyMsg">No interior emergency</p>
+        <p class="modal-sub">Driver camera session</p>
+        <button class="btn btn-acknowledge" onclick="acknowledgeEmergency()">
+          ✓ ACKNOWLEDGE
+        </button>
+      </div>
+      <div class="emergency-session exterior-emergency" id="exteriorEmergencyBox">
+        <h3>EXTERIOR — ROAD</h3>
+        <p id="exteriorEmergencyMsg">No exterior emergency</p>
+        <p class="modal-sub">Road camera session</p>
+        <button class="btn btn-acknowledge" onclick="acknowledgeEmergency()">
+          ✓ ACKNOWLEDGE
+        </button>
+      </div>
+    </div>
+    <p class="modal-sub modal-notice">Emergency contacts are being notified.</p>
   </div>
 </div>
 {% endblock %}

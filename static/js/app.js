@@ -24,7 +24,8 @@ const statusLabel     = document.getElementById('statusLabel');
 const fpsVal          = document.getElementById('fpsVal');
 const btnStart        = document.getElementById('btnStart');
 const btnStop         = document.getElementById('btnStop');
-const alertList       = document.getElementById('alertList');
+const interiorAlertList = document.getElementById('interiorAlertList');
+const exteriorAlertList = document.getElementById('exteriorAlertList');
 const emergencyModal  = document.getElementById('emergencyModal');
 const interiorSrcInput = document.getElementById('interiorSrc');
 const exteriorSrcInput = document.getElementById('exteriorSrc');
@@ -296,7 +297,15 @@ socket.on('status_update', data => {
 socket.on('alert', d => addAlert(d));
 socket.on('emergency_escalation', d => {
   lastEmergencyAlertId = d.alert_id;
-  document.getElementById('emergencyMsg').textContent = d.message;
+  const source = d.source === 'EXTERIOR' ? 'EXTERIOR' : 'INTERIOR';
+  const interiorBox = document.getElementById('interiorEmergencyBox');
+  const exteriorBox = document.getElementById('exteriorEmergencyBox');
+  const interiorMsg = document.getElementById('interiorEmergencyMsg');
+  const exteriorMsg = document.getElementById('exteriorEmergencyMsg');
+  interiorBox.classList.toggle('active', source === 'INTERIOR');
+  exteriorBox.classList.toggle('active', source === 'EXTERIOR');
+  interiorMsg.textContent = source === 'INTERIOR' ? d.message : 'No interior emergency';
+  exteriorMsg.textContent = source === 'EXTERIOR' ? d.message : 'No exterior emergency';
   emergencyModal.style.display = 'flex';
   playAlertBeep('critical');
 });
@@ -310,6 +319,9 @@ function updateIndicator(key, active, critical) {
 }
 
 function addAlert(data) {
+  const source = data.source === 'EXTERIOR' ? 'EXTERIOR' : 'INTERIOR';
+  const alertList = source === 'EXTERIOR' ? exteriorAlertList : interiorAlertList;
+  if (!alertList) return;
   if (alertList.querySelector('.no-alerts')) alertList.innerHTML = '';
   const t        = new Date().toLocaleTimeString('en-IN', { hour12: false });
   const sevClass = 'sev-' + (data.severity || 'low').toLowerCase();
@@ -337,8 +349,10 @@ function acknowledgeEmergency() {
   emergencyModal.style.display = 'none';
 }
 
-function clearAlerts() {
-  alertList.innerHTML = '<div class="no-alerts">No active alerts</div>';
+function clearAlerts(listId) {
+  const list = document.getElementById(listId);
+  if (!list) return;
+  list.innerHTML = `<div class="no-alerts">${listId === 'interiorAlertList' ? 'No driver warnings' : 'No road warnings'}</div>`;
 }
 
 let audioCtx = null;
