@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
-  <title>Login — DMS</title>
+  <title>Login — DRMS</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;600;700&family=Exo+2:wght@300;400;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}"/>
@@ -19,8 +19,8 @@
     <div class="auth-card">
       <div class="auth-logo">
         <span class="logo-icon">◈</span>
-        <h1>DMS</h1>
-        <p>Driver Monitoring System</p>
+        <h1><a href="{{ url_for('landing') }}" style="color: inherit; text-decoration: none;">DRMS</a></h1>
+        <p>Driver And Road Monitor System</p>
       </div>
 
       {% if error %}
@@ -42,9 +42,9 @@
       <div class="auth-footer">
         No account? <a href="{{ url_for('register') }}">Register here</a>
       </div>
-      <div class="auth-demo-hint">
+      <!-- <div class="auth-demo-hint">
         Demo: <code>demo@dms.com</code> / <code>demo1234</code>
-      </div>
+      </div> -->
     </div>
   </div>
 
