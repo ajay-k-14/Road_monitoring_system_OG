@@ -57,11 +57,11 @@ py -3.12 app.py
 
 Open browser at: **http://localhost:5000**
 
-### 4. Demo login
+<!-- ### 4. Demo login
 ```
 Email:    demo@dms.com
 Password: demo1234
-```
+``` -->
 
 ---
 
