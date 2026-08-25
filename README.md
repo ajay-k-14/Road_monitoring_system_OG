@@ -111,10 +111,10 @@ Emergency SMS → All saved emergency contacts (via Twilio)
 
 Configure Twilio in `.env`:
 ```
-TWILIO_SID=ACxxxxxx
+<!-- TWILIO_SID=ACxxxxxx
 TWILIO_TOKEN=xxxxxxxx
 TWILIO_FROM=+1xxxxxxxxxx
-```
+``` -->
 
 ---
 
