@@ -1,3 +1,4 @@
 .env
 _pycache/_
 *.pyc
+.python-version
