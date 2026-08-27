@@ -64,9 +64,12 @@ class RoadMonitor:
     #  Public API
     # ─────────────────────────────────────────────
 
-    def process(self, frame: np.ndarray) -> dict:
+    def process(self, frame: np.ndarray, input_valid: bool = True) -> dict:
+        """Run road detectors only when the exterior camera supplied a frame."""
         h, w = frame.shape[:2]
         results = {
+            'camera_signal':       bool(input_valid),
+            'road_detected':       False,
             'lane_deviation':       False,
             'deviation_side':       None,    # 'LEFT' | 'RIGHT'
             'deviation_pct':        0.0,
@@ -79,22 +82,52 @@ class RoadMonitor:
             'frame_centre_x':       w // 2,
         }
 
+        if not input_valid:
+            self._prev_gray = None
+            self._speed_history.clear()
+            self._lane_centre_history.clear()
+            return results
+
         # ── Lane detection ────────────────────────────────
         self._detect_lanes(frame, results, h, w)
 
         # ── Object detection (YOLO) ───────────────────────
         if self._yolo is not None:
             self._detect_objects(frame, results)
-        else:
-            self._demo_objects(results, h, w)
+
+        if not (results['_left_xs'] and results['_right_xs']):
+            results['lane_deviation'] = False
+            results['deviation_side'] = None
+
+        results['road_detected'] = bool(
+            results['_left_xs'] or results['_right_xs'] or
+            results['vehicles_detected'] or results['pedestrians_detected'] or
+            results['obstacles_detected']
+        )
+        if not results['road_detected']:
+            self._prev_gray = None
+            self._speed_history.clear()
+            self._lane_centre_history.clear()
+            results['lane_deviation'] = False
+            results['deviation_pct'] = 0.0
 
         # ── Speed estimation via optical flow ─────────────
-        self._estimate_speed(frame, results)
+        if results['road_detected']:
+            self._estimate_speed(frame, results)
 
         return results
 
     def annotate(self, frame: np.ndarray, results: dict) -> np.ndarray:
         h, w = frame.shape[:2]
+
+        if not results.get('camera_signal', False):
+            return frame
+
+        if not results.get('road_detected', False):
+            h, w = frame.shape[:2]
+            cv2.putText(frame, 'NO ROAD DETECTED', (w // 2 - 125, h // 2),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255), 2)
+            return frame
 
         # ── Draw lane lines and deviation indicator ───────
         self._draw_lane_overlay(frame, results, h, w)
@@ -210,7 +243,8 @@ class RoadMonitor:
         results['frame_centre_x'] = w // 2
         results['deviation_pct']  = round(abs(deviation) * 100, 1)
 
-        if abs(deviation) > self.cfg.LANE_DEVIATION_THRESHOLD:
+        if (left_xs and right_xs and
+            abs(deviation) > self.cfg.LANE_DEVIATION_THRESHOLD):
             results['lane_deviation'] = True
             results['deviation_side'] = 'RIGHT' if deviation > 0 else 'LEFT'
 

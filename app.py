@@ -226,6 +226,8 @@ def monitoring_loop(interior_src=0, exterior_src=1):
     try:
         f_in = _capture_one(cap_in)
         f_ext = _capture_one(cap_ext)
+        interior_ok = cap_in is not None and f_in is not None
+        exterior_ok = cap_ext is not None and f_ext is not None
         if f_in is not None and f_ext is not None:
             same_cam = _frames_are_same(f_in, f_ext)
             log_debug(f"Diag: cap ids in={id(cap_in)} ext={id(cap_ext)} same_cam={same_cam}")
@@ -276,10 +278,14 @@ def monitoring_loop(interior_src=0, exterior_src=1):
             assign_idx += 1
             log_debug(f"Auto-assigned cam {idx} → exterior")
 
-        if cap_in is not None and cap_ext is not None and f_in is not None:
+        if cap_in is not None and f_in is None:
+            f_in = _capture_one(cap_in)
+        if cap_ext is not None:
             f_ext = _capture_one(cap_ext)
-            if f_ext is not None and _frames_are_same(f_in, f_ext):
+            if f_in is not None and f_ext is not None and _frames_are_same(f_in, f_ext):
                 log_debug("Auto-scan still returned duplicate camera feeds.")
+        interior_ok = cap_in is not None and f_in is not None
+        exterior_ok = cap_ext is not None and f_ext is not None
 
         # Release any unused scanned caps
         for idx, cap in available:
@@ -336,15 +342,20 @@ def monitoring_loop(interior_src=0, exterior_src=1):
             interior_fails = 0
 
         # ── Exterior frame ─────────────────────────────
-        if exterior_ok and cap_ext is not None:
+        if cap_ext is not None:
             ret, ext_frame = cap_ext.read()
             if not ret or ext_frame is None:
                 exterior_fails += 1
+                exterior_ok = False
                 ext_frame = _demo_frame("Exterior — No Signal", (480, 640, 3), (30, 60, 30))
+                exterior_signal = False
             else:
                 exterior_fails = 0
+                exterior_ok = True
+                exterior_signal = True
         else:
             ext_frame = _demo_frame("Demo — Exterior Camera", (480, 640, 3), (20, 40, 20))
+            exterior_signal = False
 
         if exterior_fails > 5:
             log_debug("Reconnecting exterior…")
@@ -358,7 +369,7 @@ def monitoring_loop(interior_src=0, exterior_src=1):
 
         # ── AI Processing ───────────────────────────────
         driver_results = driver_monitor.process(in_frame, input_valid=interior_signal)
-        road_results   = road_monitor.process(ext_frame)
+        road_results   = road_monitor.process(ext_frame, input_valid=exterior_signal)
         annotated_in   = driver_monitor.annotate(in_frame.copy(),  driver_results)
         annotated_ext  = road_monitor.annotate(ext_frame.copy(), road_results)
 

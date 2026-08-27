@@ -82,20 +82,22 @@ class AlertSystem:
                     alert = self._fire(atype, severity, msg, 'INTERIOR')
                     alerts.append(self._to_dict(alert))
 
-        for (key, val, atype, severity, msg) in ROAD_RULES:
-            if road_results.get(key) == val:
-                if self._should_fire(atype, severity, now):
-                    alert = self._fire(atype, severity, msg, 'EXTERIOR')
-                    alerts.append(self._to_dict(alert))
+        if (road_results.get('camera_signal', False) and
+            road_results.get('road_detected', False)):
+            for (key, val, atype, severity, msg) in ROAD_RULES:
+                if road_results.get(key) == val:
+                    if self._should_fire(atype, severity, now):
+                        alert = self._fire(atype, severity, msg, 'EXTERIOR')
+                        alerts.append(self._to_dict(alert))
 
-        # Pedestrian proximity alert
-        if road_results.get('pedestrians_detected'):
-            n = len(road_results['pedestrians_detected'])
-            atype = 'PEDESTRIAN_DETECTED'
-            if self._should_fire(atype, 'HIGH', now):
-                msg = f'⚠ {n} pedestrian(s) detected nearby!'
-                alert = self._fire(atype, 'HIGH', msg, 'EXTERIOR')
-                alerts.append(self._to_dict(alert))
+            # Pedestrian proximity alert
+            if road_results.get('pedestrians_detected'):
+                n = len(road_results['pedestrians_detected'])
+                atype = 'PEDESTRIAN_DETECTED'
+                if self._should_fire(atype, 'HIGH', now):
+                    msg = f'⚠ {n} pedestrian(s) detected nearby!'
+                    alert = self._fire(atype, 'HIGH', msg, 'EXTERIOR')
+                    alerts.append(self._to_dict(alert))
 
         return alerts
 

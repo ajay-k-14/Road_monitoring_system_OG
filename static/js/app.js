@@ -214,6 +214,7 @@ async function applyCameraSelection() {
 }
 
 function setMonitoringUI(active) {
+  resetExteriorState();
   btnStart.disabled = active;
   btnStop.disabled  = !active;
   statusDot.classList.toggle('active', active);
@@ -222,6 +223,19 @@ function setMonitoringUI(active) {
   driverBadge.classList.toggle('live', active);
   roadBadge.textContent   = active ? 'LIVE' : 'OFFLINE';
   roadBadge.classList.toggle('live', active);
+}
+
+function resetExteriorState() {
+  updateIndicator('lane', false, false);
+  updateIndicator('overspeed', false, false);
+  updateIndicator('pedestrian', false, false);
+  updateIndicator('vehicle', false, false);
+  updateIndicator('obstacle', false, false);
+  if (devVal) { devVal.textContent = '0.0%'; devVal.style.color = 'var(--accent)'; }
+  if (objVal) { objVal.textContent = '0'; objVal.style.color = 'var(--accent)'; }
+  if (speedVal) speedVal.textContent = '0';
+  if (speedArc) speedArc.style.strokeDashoffset = ARC_TOTAL;
+  if (exteriorFeed) exteriorFeed.removeAttribute('src');
 }
 
 // ── Socket Events ─────────────────────────────────────────────────
@@ -235,7 +249,19 @@ socket.on('frame_update', d => {
 
 socket.on('status_update', data => {
   const driver = data.driver || {};
-  const road   = data.road   || {};
+  const rawRoad = data.road || {};
+  const caps = data.caps || {};
+  const exteriorValid = rawRoad.camera_signal === true && caps.exterior_ok === true;
+  const road = exteriorValid ? rawRoad : {
+    camera_signal: false,
+    lane_deviation: false,
+    over_speed: false,
+    pedestrians_detected: [],
+    vehicles_detected: [],
+    obstacles_detected: [],
+    speed_kmh: 0,
+    deviation_pct: 0,
+  };
 
   if (data.fps !== undefined) fpsVal.textContent = data.fps;
 
@@ -285,13 +311,13 @@ socket.on('status_update', data => {
   objVal.textContent = totalObjs;
   objVal.style.color = totalObjs > 2 ? 'var(--warn)' : 'var(--accent)';
 
-  const caps = data.caps || {};
   if (btnStop && !btnStop.disabled) {
     driverBadge.textContent = caps.interior_ok === false ? 'NO SIGNAL' : 'LIVE';
     driverBadge.classList.toggle('live', caps.interior_ok !== false);
     roadBadge.textContent   = caps.exterior_ok === false ? 'NO SIGNAL' : 'LIVE';
     roadBadge.classList.toggle('live', caps.exterior_ok !== false);
   }
+  if (!exteriorValid) resetExteriorState();
 });
 
 socket.on('alert', d => addAlert(d));
