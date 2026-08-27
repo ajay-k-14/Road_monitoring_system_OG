@@ -7,6 +7,7 @@ import cv2
 import base64
 import threading
 import time
+import os
 from flask import Flask, render_template, request, redirect, url_for, session, jsonify
 from flask_socketio import SocketIO, emit
 from flask_login import LoginManager
@@ -592,4 +593,4 @@ def on_alert_responded(data):
 
 if __name__ == '__main__':
     init_db()
-    socketio.run(app, host='0.0.0.0', port=5000, debug=True)
+    socketio.run(app, host='0.0.0.0', port=5000, debug=False,allow_unsafe_werkzeug=True)
