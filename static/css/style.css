@@ -890,3 +890,123 @@ html, body {
   font-family: var(--font-head); letter-spacing: 1px; cursor: pointer;
 }
 .btn-logs:hover { border-color: var(--text-dim); color: var(--text); }
+
+/* Keep camera controls together on hosted and narrow dashboard widths. */
+.control-bar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 12px 16px;
+}
+
+.control-bar .system-status {
+  grid-column: 1;
+  grid-row: 1;
+  margin-right: 0;
+}
+
+.control-bar .camera-selectors {
+  grid-column: 1 / -1;
+  grid-row: 2;
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) minmax(180px, 1fr) minmax(160px, 0.8fr) auto;
+  align-items: end;
+  gap: 10px;
+  width: 100%;
+  padding: 0;
+}
+
+.control-bar .cam-select-group {
+  min-width: 0;
+  width: 100%;
+}
+
+.control-bar .camera-select {
+  min-width: 0;
+}
+
+.control-bar .cam-select-actions {
+  flex-direction: row;
+  align-items: end;
+  flex-wrap: nowrap;
+  gap: 8px;
+}
+
+.control-bar .cam-select-actions .btn {
+  min-width: 92px;
+  white-space: nowrap;
+}
+
+.control-bar #cameraNote {
+  grid-column: 1;
+  grid-row: 3;
+  align-self: center;
+  max-width: none !important;
+}
+
+.control-bar .control-buttons {
+  grid-column: 2;
+  grid-row: 1;
+  white-space: nowrap;
+}
+
+.control-bar .fps-display {
+  grid-column: 3;
+  grid-row: 1;
+  white-space: nowrap;
+}
+
+@media (max-width: 900px) {
+  .control-bar .camera-selectors {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .control-bar .cam-select-group:nth-child(3) {
+    grid-column: 1;
+  }
+
+  .control-bar .cam-select-actions {
+    grid-column: 2;
+    justify-content: end;
+  }
+}
+
+@media (max-width: 700px) {
+  .control-bar {
+    grid-template-columns: 1fr;
+  }
+
+  .control-bar .system-status,
+  .control-bar .control-buttons,
+  .control-bar .fps-display,
+  .control-bar #cameraNote {
+    grid-column: 1;
+    grid-row: auto;
+  }
+
+  .control-bar .system-status,
+  .control-bar .fps-display {
+    justify-content: flex-start;
+  }
+
+  .control-bar .control-buttons {
+    width: 100%;
+  }
+
+  .control-bar .camera-selectors {
+    grid-template-columns: 1fr;
+  }
+
+  .control-bar .cam-select-group:nth-child(3),
+  .control-bar .cam-select-actions {
+    grid-column: 1;
+  }
+
+  .control-bar .cam-select-actions {
+    justify-content: stretch;
+  }
+
+  .control-bar .cam-select-actions .btn {
+    flex: 1 1 0;
+  }
+}
