@@ -155,6 +155,10 @@ class DriverMonitor:
             if face_width < w * self.cfg.MIN_FACE_WIDTH_RATIO:
                 self._reset_temporal_state()
                 results['face_detected'] = False
+                self._fps_counter.append(time.time() - t0)
+                if len(self._fps_counter) > 1:
+                    avg = sum(self._fps_counter) / len(self._fps_counter)
+                    self.fps = round(1.0 / avg, 1) if avg > 0 else 0
                 self._last_results = results
                 return results
 

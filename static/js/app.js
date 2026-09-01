@@ -61,6 +61,8 @@ let previewStream = null;
 let browserCaptureTimers = [];
 let browserCaptureStreams = [];
 let _cameraDeviceIds = [];   // index → deviceId, for preview only
+let browserFrameCount = 0;
+let browserFrameWindowStart = 0;
 
 const SPEED_MAX = 120;
 const ARC_TOTAL = 220;
@@ -290,6 +292,7 @@ function startBrowserCameraCapture() {
       await exteriorVideo.play();
 
       const sendFrame = (video, side) => {
+        if (video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) return;
         const canvas = document.createElement('canvas');
         canvas.width = video.videoWidth || 640;
         canvas.height = video.videoHeight || 480;
@@ -298,16 +301,16 @@ function startBrowserCameraCapture() {
         ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
         const dataUrl = canvas.toDataURL('image/jpeg', 0.72);
         socket.emit('browser_frame', { side, image: dataUrl });
+        browserFrameCount += 1;
       };
 
+      browserFrameWindowStart = performance.now();
       browserCaptureTimers.push(setInterval(() => sendFrame(interiorVideo, 'interior'), 220));
       browserCaptureTimers.push(setInterval(() => sendFrame(exteriorVideo, 'exterior'), 220));
-      setCameraNote(
-        sameCamera
-          ? 'Camera detected. One camera is feeding both monitoring views.'
-          : 'Both cameras detected and streaming.',
-        'ok'
-      );
+      setCameraNote(sameCamera
+        ? 'Camera detected. One camera is feeding both monitoring views.'
+        : 'Both cameras detected and streaming.', 'ok');
+      updateBrowserCaptureFps();
     } catch (err) {
       console.error('Browser camera capture failed:', err);
       const reason = err && err.name ? ` (${err.name})` : '';
@@ -317,6 +320,17 @@ function startBrowserCameraCapture() {
   };
 
   startCapture();
+}
+
+function updateBrowserCaptureFps() {
+  if (!btnStop || btnStop.disabled || !browserFrameWindowStart) return;
+  const elapsed = (performance.now() - browserFrameWindowStart) / 1000;
+  if (elapsed >= 1) {
+    fpsVal.textContent = (browserFrameCount / elapsed).toFixed(1);
+    browserFrameCount = 0;
+    browserFrameWindowStart = performance.now();
+  }
+  requestAnimationFrame(updateBrowserCaptureFps);
 }
 
 async function stopMonitoring() {
