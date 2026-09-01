@@ -58,6 +58,8 @@ const indicators = {
 
 let lastEmergencyAlertId = null;
 let previewStream = null;
+let browserCaptureTimers = [];
+let browserCaptureStreams = [];
 let _cameraDeviceIds = [];   // index → deviceId, for preview only
 
 const SPEED_MAX = 120;
@@ -142,6 +144,15 @@ function stopPreviewStream() {
   if (cameraPreview) cameraPreview.srcObject = null;
 }
 
+function stopBrowserCapture() {
+  browserCaptureTimers.forEach(timer => clearInterval(timer));
+  browserCaptureTimers = [];
+  browserCaptureStreams.forEach(stream => {
+    if (stream && stream.getTracks) stream.getTracks().forEach(track => track.stop());
+  });
+  browserCaptureStreams = [];
+}
+
 async function previewSelectedCamera(kind) {
   const selectEl     = kind === 'exterior' ? exteriorSrcInput : interiorSrcInput;
   const numericIndex = parseInt(selectEl.value, 10);   // always valid integer now
@@ -165,7 +176,8 @@ async function previewSelectedCamera(kind) {
 
 // ── Monitoring ────────────────────────────────────────────────────
 async function startMonitoring() {
-  stopPreviewStream();   // release browser camera lock before server opens it
+  stopPreviewStream();
+  stopBrowserCapture();
 
   const interior = parseInt(interiorSrcInput ? interiorSrcInput.value : '0', 10);
   const exterior = parseInt(exteriorSrcInput ? exteriorSrcInput.value : '1', 10);
@@ -182,12 +194,17 @@ async function startMonitoring() {
     const res  = await fetch('/api/monitoring/start', {
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ interior_src: safeInterior, exterior_src: safeExterior }),
+      body:    JSON.stringify({
+        interior_src: safeInterior,
+        exterior_src: safeExterior,
+        capture_mode: 'browser'
+      }),
     });
     const data = await res.json();
     if (data.status === 'started' || data.status === 'already_running') {
       setMonitoringUI(true);
-      setCameraNote(`▶ Monitoring — Interior: cam ${safeInterior} | Exterior: cam ${safeExterior}`, 'ok');
+      setCameraNote(`▶ Monitoring from browser cameras — Interior: cam ${safeInterior} | Exterior: cam ${safeExterior}`, 'ok');
+      startBrowserCameraCapture();
     }
   } catch (e) {
     console.error('Start error:', e);
@@ -195,7 +212,65 @@ async function startMonitoring() {
   }
 }
 
+function getSelectedCameraConstraints(kind) {
+  const selectEl = kind === 'exterior' ? exteriorSrcInput : interiorSrcInput;
+  const numericIndex = parseInt(selectEl ? selectEl.value : '0', 10);
+  const deviceId = Number.isInteger(numericIndex) ? (_cameraDeviceIds[numericIndex] || '') : '';
+  if (deviceId) {
+    return { video: { deviceId: { exact: deviceId } }, audio: false };
+  }
+  return {
+    video: {
+      facingMode: kind === 'interior' ? 'user' : 'environment',
+      width: { ideal: 1280 },
+      height: { ideal: 720 }
+    },
+    audio: false
+  };
+}
+
+function startBrowserCameraCapture() {
+  const startCapture = async () => {
+    try {
+      stopBrowserCapture();
+      const interiorStream = await navigator.mediaDevices.getUserMedia(getSelectedCameraConstraints('interior'));
+      const exteriorStream = await navigator.mediaDevices.getUserMedia(getSelectedCameraConstraints('exterior'));
+      browserCaptureStreams = [interiorStream, exteriorStream];
+
+      const interiorVideo = document.createElement('video');
+      const exteriorVideo = document.createElement('video');
+      interiorVideo.srcObject = interiorStream;
+      exteriorVideo.srcObject = exteriorStream;
+      interiorVideo.muted = true;
+      exteriorVideo.muted = true;
+      await interiorVideo.play();
+      await exteriorVideo.play();
+
+      const sendFrame = (video, side) => {
+        const canvas = document.createElement('canvas');
+        canvas.width = video.videoWidth || 640;
+        canvas.height = video.videoHeight || 480;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.72);
+        socket.emit('browser_frame', { side, image: dataUrl });
+      };
+
+      browserCaptureTimers.push(setInterval(() => sendFrame(interiorVideo, 'interior'), 220));
+      browserCaptureTimers.push(setInterval(() => sendFrame(exteriorVideo, 'exterior'), 220));
+      setCameraNote('📷 Browser camera capture active for public hosting.', 'ok');
+    } catch (err) {
+      console.error('Browser camera capture failed:', err);
+      setCameraNote('Browser camera access failed. Allow camera permissions in the browser.', 'warn');
+    }
+  };
+
+  startCapture();
+}
+
 async function stopMonitoring() {
+  stopBrowserCapture();
   try {
     await fetch('/api/monitoring/stop', { method: 'POST' });
     setMonitoringUI(false);

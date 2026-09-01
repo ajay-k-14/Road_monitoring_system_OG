@@ -40,6 +40,7 @@ driver_monitor    = DriverMonitor(yolo_model=road_monitor._yolo)
 alert_system      = AlertSystem(socketio)
 monitoring_active = False
 monitor_thread    = None
+browser_capture_mode = False
 interior_frame_bytes = None
 exterior_frame_bytes = None
 frame_lock  = threading.Lock()
@@ -54,6 +55,62 @@ def log_debug(msg):
     debug_logs.append(f"{time.strftime('%H:%M:%S')} {msg}")
 
 
+def _process_browser_frame(frame_b64, side):
+    """Decode a browser-captured JPEG and run server-side AI analysis."""
+    global interior_frame_bytes, exterior_frame_bytes
+
+    if not frame_b64:
+        return
+
+    try:
+        encoded = frame_b64.split(',', 1)[1] if ',' in frame_b64 else frame_b64
+        image_bytes = base64.b64decode(encoded)
+        np_arr = np.frombuffer(image_bytes, dtype=np.uint8)
+        frame = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
+        if frame is None or frame.size == 0:
+            return
+    except Exception as exc:
+        log_debug(f"Browser frame decode failed for {side}: {exc}")
+        return
+
+    if side == 'interior':
+        driver_results = driver_monitor.process(frame, input_valid=True)
+        annotated = driver_monitor.annotate(frame.copy(), driver_results)
+        _, buf = cv2.imencode('.jpg', annotated, [cv2.IMWRITE_JPEG_QUALITY, 70])
+        with frame_lock:
+            interior_frame_bytes = base64.b64encode(buf.tobytes()).decode('utf-8')
+        socketio.emit('frame_update', {
+            'interior': interior_frame_bytes,
+            'exterior': exterior_frame_bytes or '',
+        })
+        socketio.emit('status_update', {
+            'driver': driver_results,
+            'road': {'camera_signal': False},
+            'alerts': [],
+            'fps': float(driver_monitor.fps),
+            'caps': {'interior_ok': True, 'exterior_ok': False},
+        })
+        return
+
+    if side == 'exterior':
+        road_results = road_monitor.process(frame, input_valid=True)
+        annotated = road_monitor.annotate(frame.copy(), road_results)
+        _, buf = cv2.imencode('.jpg', annotated, [cv2.IMWRITE_JPEG_QUALITY, 70])
+        with frame_lock:
+            exterior_frame_bytes = base64.b64encode(buf.tobytes()).decode('utf-8')
+        socketio.emit('frame_update', {
+            'interior': interior_frame_bytes or '',
+            'exterior': exterior_frame_bytes,
+        })
+        socketio.emit('status_update', {
+            'driver': {'sleeping': False, 'drowsy': False},
+            'road': road_results,
+            'alerts': alert_system.evaluate({'sleeping': False, 'drowsy': False}, road_results),
+            'fps': float(driver_monitor.fps),
+            'caps': {'interior_ok': False, 'exterior_ok': True},
+        })
+
+
 @login_manager.user_loader
 def load_user(user_id):
     db = get_db()
@@ -63,6 +120,18 @@ def load_user(user_id):
 # ─────────────────────────────────────────────
 #  Camera Source Parser  ← BUG FIX
 # ─────────────────────────────────────────────
+def normalize_camera_pair(interior_src, exterior_src):
+    """Ensure the two configured sources are distinct while preserving the old logic."""
+    if interior_src == exterior_src and isinstance(interior_src, int):
+        return interior_src, exterior_src + 1
+    return interior_src, exterior_src
+
+
+def get_bind_host():
+    """Allow the app to bind to the network interface requested by the environment."""
+    return os.environ.get('HOST') or os.environ.get('FLASK_RUN_HOST') or Config.HOST or '0.0.0.0'
+
+
 def _parse_src(v):
     """
     Safely convert camera source value from the API request to an int index
@@ -490,16 +559,16 @@ def settings():
 # ── API ────────────────────────────────────────────────────────────
 @app.route('/api/monitoring/start', methods=['POST'])
 def start_monitoring():
-    global monitoring_active, monitor_thread
+    global monitoring_active, monitor_thread, browser_capture_mode
 
     data    = request.get_json(silent=True) or {}
     raw_in  = data.get('interior_src', 0)
     raw_ext = data.get('exterior_src', 1)
+    capture_mode = data.get('capture_mode', 'local')
 
     interior_src = _parse_src(raw_in)
     exterior_src = _parse_src(raw_ext)
 
-    # Fall back to safe defaults if parsing failed (browser deviceId hash)
     if interior_src is None:
         interior_src = 0
         log_debug(f"interior_src defaulted to 0 (raw was: {str(raw_in)[:30]})")
@@ -507,28 +576,36 @@ def start_monitoring():
         exterior_src = 1
         log_debug(f"exterior_src defaulted to 1 (raw was: {str(raw_ext)[:30]})")
 
-    # Prevent identical index for both cameras
-    if interior_src == exterior_src and isinstance(interior_src, int):
-        exterior_src = interior_src + 1
-        log_debug(f"Same index conflict resolved — exterior_src set to {exterior_src}")
+    interior_src, exterior_src = normalize_camera_pair(interior_src, exterior_src)
+    if interior_src != data.get('interior_src') or exterior_src != data.get('exterior_src'):
+        log_debug(f"Same index conflict resolved — interior_src={interior_src} exterior_src={exterior_src}")
+
+    if capture_mode == 'browser':
+        browser_capture_mode = True
+        monitoring_active = True
+        return jsonify({'status': 'started', 'mode': 'browser',
+                        'interior_src': interior_src,
+                        'exterior_src': exterior_src})
 
     if not monitoring_active:
         monitoring_active = True
+        browser_capture_mode = False
         monitor_thread = threading.Thread(
             target=monitoring_loop,
             kwargs={'interior_src': interior_src, 'exterior_src': exterior_src},
             daemon=True
         )
         monitor_thread.start()
-        return jsonify({'status': 'started',
+        return jsonify({'status': 'started', 'mode': 'local',
                         'interior_src': interior_src,
                         'exterior_src': exterior_src})
     return jsonify({'status': 'already_running'})
 
 @app.route('/api/monitoring/stop', methods=['POST'])
 def stop_monitoring():
-    global monitoring_active
+    global monitoring_active, browser_capture_mode
     monitoring_active = False
+    browser_capture_mode = False
     return jsonify({'status': 'stopped'})
 
 @app.route('/api/monitoring/status')
@@ -587,10 +664,22 @@ def delete_contact(cid):
 def on_connect():
     emit('monitoring_state', {'active': monitoring_active})
 
+
+@socketio.on('browser_frame')
+def on_browser_frame(data):
+    if not data:
+        return
+    if not monitoring_active:
+        return
+    side = (data.get('side') or 'interior').lower()
+    image_data = data.get('image') or ''
+    _process_browser_frame(image_data, side)
+
+
 @socketio.on('alert_responded')
 def on_alert_responded(data):
     alert_system.mark_responded(data.get('alert_id'))
 
 if __name__ == '__main__':
     init_db()
-    socketio.run(app, host='0.0.0.0', port=5000, debug=False,allow_unsafe_werkzeug=True)
+    socketio.run(app, host=get_bind_host(), port=Config.PORT, debug=False, allow_unsafe_werkzeug=True)
