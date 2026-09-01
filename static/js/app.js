@@ -236,6 +236,30 @@ function getSelectedCameraConstraints(kind) {
   };
 }
 
+async function openSelectedCamera(kind) {
+  const selectedConstraints = getSelectedCameraConstraints(kind);
+  try {
+    return await navigator.mediaDevices.getUserMedia(selectedConstraints);
+  } catch (selectedError) {
+    // Some hosted browsers enumerate virtual cameras that cannot be opened by
+    // their deviceId. Retry with the browser's normal camera selection.
+    console.warn(`Selected ${kind} camera failed:`, selectedError);
+    try {
+      return await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: kind === 'interior' ? 'user' : 'environment',
+          width: { ideal: 1280 },
+          height: { ideal: 720 }
+        },
+        audio: false
+      });
+    } catch (fallbackError) {
+      fallbackError.cameraKind = kind;
+      throw fallbackError;
+    }
+  }
+}
+
 function startBrowserCameraCapture() {
   const startCapture = async () => {
     try {
@@ -243,13 +267,18 @@ function startBrowserCameraCapture() {
       const interiorIndex = parseInt(interiorSrcInput.value, 10);
       const exteriorIndex = parseInt(exteriorSrcInput.value, 10);
       const sameCamera = interiorIndex === exteriorIndex;
-      const interiorStream = await navigator.mediaDevices.getUserMedia(getSelectedCameraConstraints('interior'));
-      const exteriorStream = sameCamera
-        ? interiorStream
-        : await navigator.mediaDevices.getUserMedia(getSelectedCameraConstraints('exterior'));
-      browserCaptureStreams = sameCamera
-        ? [interiorStream]
-        : [interiorStream, exteriorStream];
+      const interiorStream = await openSelectedCamera('interior');
+      browserCaptureStreams = [interiorStream];
+      let exteriorStream = interiorStream;
+      if (!sameCamera) {
+        try {
+          exteriorStream = await openSelectedCamera('exterior');
+        } catch (exteriorError) {
+          exteriorError.cameraKind = 'exterior';
+          throw exteriorError;
+        }
+      }
+      if (!sameCamera) browserCaptureStreams.push(exteriorStream);
 
       const interiorVideo = document.createElement('video');
       const exteriorVideo = document.createElement('video');
@@ -282,7 +311,8 @@ function startBrowserCameraCapture() {
     } catch (err) {
       console.error('Browser camera capture failed:', err);
       const reason = err && err.name ? ` (${err.name})` : '';
-      setCameraNote(`Camera access failed${reason}. Allow permission and try again.`, 'warn');
+      const cameraKind = err && err.cameraKind ? `${err.cameraKind} ` : '';
+      setCameraNote(`${cameraKind}camera could not be opened${reason}. Check that it is not used by another app.`, 'warn');
     }
   };
 
@@ -334,9 +364,13 @@ function resetExteriorState() {
 }
 
 // ── Socket Events ─────────────────────────────────────────────────
-socket.on('connect', () => console.log('[DMS] Socket connected'));
+socket.on('connect', () => {
+  console.log('[DMS] Socket connected');
+  if (!btnStop || btnStop.disabled) setCameraNote('Live connection established.', 'ok');
+});
 socket.on('connect_error', () => {
-  setCameraNote('Live connection failed. Check the public host WebSocket/proxy settings.', 'warn');
+  if (!btnStop || btnStop.disabled)
+    setCameraNote('Live connection failed. Check the public host WebSocket/proxy settings.', 'warn');
 });
 socket.on('monitoring_state', d => setMonitoringUI(d.active));
 
