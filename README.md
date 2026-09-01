@@ -57,6 +57,12 @@ py -3.12 app.py
 
 Open browser at: **http://localhost:5000**
 
+For camera access from a public/global host, the page must be served over HTTPS.
+The browser blocks `getUserMedia()` on ordinary public HTTP URLs. If this app
+terminates TLS itself, set `SSL_CERT_FILE` and `SSL_KEY_FILE` to the certificate
+and private-key paths before starting it. If a hosting provider terminates TLS,
+use its HTTPS URL and keep the app bound to `0.0.0.0`.
+
 <!-- ### 4. Demo login
 ```
 Email:    demo@dms.com

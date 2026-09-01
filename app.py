@@ -682,4 +682,8 @@ def on_alert_responded(data):
 
 if __name__ == '__main__':
     init_db()
-    socketio.run(app, host=get_bind_host(), port=Config.PORT, debug=False, allow_unsafe_werkzeug=True)
+    ssl_cert = os.environ.get('SSL_CERT_FILE')
+    ssl_key = os.environ.get('SSL_KEY_FILE')
+    ssl_context = (ssl_cert, ssl_key) if ssl_cert and ssl_key else None
+    socketio.run(app, host=get_bind_host(), port=Config.PORT, debug=False,
+                 allow_unsafe_werkzeug=True, ssl_context=ssl_context)

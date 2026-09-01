@@ -176,6 +176,18 @@ async function previewSelectedCamera(kind) {
 
 // ── Monitoring ────────────────────────────────────────────────────
 async function startMonitoring() {
+  if (!window.isSecureContext || !navigator.mediaDevices ||
+      !navigator.mediaDevices.getUserMedia) {
+    setCameraNote('Camera access requires HTTPS on the public host. Open the secure https:// URL.', 'warn');
+    return;
+  }
+
+  if (!socket.connected) {
+    setCameraNote('Connecting to the monitoring server. Try again in a moment.', 'warn');
+    socket.connect();
+    return;
+  }
+
   stopPreviewStream();
   stopBrowserCapture();
 
@@ -184,11 +196,6 @@ async function startMonitoring() {
 
   const safeInterior = isNaN(interior) ? 0 : interior;
   const safeExterior = isNaN(exterior) ? 1 : exterior;
-
-  if (safeInterior === safeExterior) {
-    setCameraNote('⚠ Both cameras set to the same index! Select different cameras.', 'warn');
-    return;
-  }
 
   try {
     const res  = await fetch('/api/monitoring/start', {
@@ -233,9 +240,16 @@ function startBrowserCameraCapture() {
   const startCapture = async () => {
     try {
       stopBrowserCapture();
+      const interiorIndex = parseInt(interiorSrcInput.value, 10);
+      const exteriorIndex = parseInt(exteriorSrcInput.value, 10);
+      const sameCamera = interiorIndex === exteriorIndex;
       const interiorStream = await navigator.mediaDevices.getUserMedia(getSelectedCameraConstraints('interior'));
-      const exteriorStream = await navigator.mediaDevices.getUserMedia(getSelectedCameraConstraints('exterior'));
-      browserCaptureStreams = [interiorStream, exteriorStream];
+      const exteriorStream = sameCamera
+        ? interiorStream
+        : await navigator.mediaDevices.getUserMedia(getSelectedCameraConstraints('exterior'));
+      browserCaptureStreams = sameCamera
+        ? [interiorStream]
+        : [interiorStream, exteriorStream];
 
       const interiorVideo = document.createElement('video');
       const exteriorVideo = document.createElement('video');
@@ -259,10 +273,16 @@ function startBrowserCameraCapture() {
 
       browserCaptureTimers.push(setInterval(() => sendFrame(interiorVideo, 'interior'), 220));
       browserCaptureTimers.push(setInterval(() => sendFrame(exteriorVideo, 'exterior'), 220));
-      setCameraNote('📷 Browser camera capture active for public hosting.', 'ok');
+      setCameraNote(
+        sameCamera
+          ? 'Camera detected. One camera is feeding both monitoring views.'
+          : 'Both cameras detected and streaming.',
+        'ok'
+      );
     } catch (err) {
       console.error('Browser camera capture failed:', err);
-      setCameraNote('Browser camera access failed. Allow camera permissions in the browser.', 'warn');
+      const reason = err && err.name ? ` (${err.name})` : '';
+      setCameraNote(`Camera access failed${reason}. Allow permission and try again.`, 'warn');
     }
   };
 
@@ -315,6 +335,9 @@ function resetExteriorState() {
 
 // ── Socket Events ─────────────────────────────────────────────────
 socket.on('connect', () => console.log('[DMS] Socket connected'));
+socket.on('connect_error', () => {
+  setCameraNote('Live connection failed. Check the public host WebSocket/proxy settings.', 'warn');
+});
 socket.on('monitoring_state', d => setMonitoringUI(d.active));
 
 socket.on('frame_update', d => {
