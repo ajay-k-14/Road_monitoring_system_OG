@@ -7,7 +7,7 @@ import os
 class Config:
     SECRET_KEY          = os.environ.get('SECRET_KEY', 'dms-secret-key-change-in-prod')
     DATABASE_URL        = os.environ.get('DATABASE_URL', 'sqlite:///driver_monitor.db')
-    DEBUG               = os.environ.get('DEBUG', 'True') == 'True'
+    DEBUG               = os.environ.get('DEBUG', 'False').lower() == 'true'
     HOST                = os.environ.get('HOST', os.environ.get('FLASK_RUN_HOST', '0.0.0.0'))
     PORT                = int(os.environ.get('PORT', '5000'))
 

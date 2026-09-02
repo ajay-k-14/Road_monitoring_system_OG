@@ -52,8 +52,9 @@ debug_logs  = deque(maxlen=1000)
 
 # Browser uploads are deliberately bounded so a hosted instance cannot be
 # overwhelmed by camera bandwidth or concurrent inference requests.
-BROWSER_FRAME_MAX_BYTES = int(os.environ.get('BROWSER_FRAME_MAX_BYTES', '450000'))
-BROWSER_FRAME_MIN_INTERVAL = float(os.environ.get('BROWSER_FRAME_MIN_INTERVAL', '0.3'))
+BROWSER_FRAME_MAX_BYTES = int(os.environ.get('BROWSER_FRAME_MAX_BYTES', '300000'))
+BROWSER_FRAME_MIN_INTERVAL = float(os.environ.get('BROWSER_FRAME_MIN_INTERVAL', '0.5'))
+BROWSER_FRAME_MAX_WIDTH = int(os.environ.get('BROWSER_FRAME_MAX_WIDTH', '640'))
 
 
 def log_debug(msg):
@@ -78,6 +79,10 @@ def _process_browser_frame(frame_b64, side):
         frame = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
         if frame is None or frame.size == 0:
             return
+        if frame.shape[1] > BROWSER_FRAME_MAX_WIDTH:
+            scale = BROWSER_FRAME_MAX_WIDTH / frame.shape[1]
+            frame = cv2.resize(frame, (BROWSER_FRAME_MAX_WIDTH,
+                                       max(1, int(frame.shape[0] * scale))))
     except Exception as exc:
         log_debug(f"Browser frame decode failed for {side}: {exc}")
         return

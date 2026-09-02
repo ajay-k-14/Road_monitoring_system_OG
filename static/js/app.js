@@ -209,7 +209,10 @@ async function startMonitoring() {
         capture_mode: 'browser'
       }),
     });
-    const data = await res.json();
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      throw new Error(data.error || `Server returned HTTP ${res.status}`);
+    }
     if (data.status === 'started' || data.status === 'already_running') {
       setMonitoringUI(true);
       setCameraNote(`▶ Monitoring from browser cameras — Interior: cam ${safeInterior} | Exterior: cam ${safeExterior}`, 'ok');
@@ -303,16 +306,16 @@ function startBrowserCameraCapture() {
         const ctx = canvas.getContext('2d');
         if (!ctx) return;
         ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-        const dataUrl = canvas.toDataURL('image/jpeg', 0.58);
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.68);
         socket.emit('browser_frame', { side, image: dataUrl });
         browserFrameCount += 1;
       };
 
       browserFrameWindowStart = performance.now();
-      browserCaptureTimers.push(setInterval(() => sendFrame(interiorVideo, 'interior'), 350));
+      browserCaptureTimers.push(setInterval(() => sendFrame(interiorVideo, 'interior'), 500));
       const exteriorTimer = setTimeout(() => {
         sendFrame(exteriorVideo, 'exterior');
-        browserCaptureTimers.push(setInterval(() => sendFrame(exteriorVideo, 'exterior'), 350));
+        browserCaptureTimers.push(setInterval(() => sendFrame(exteriorVideo, 'exterior'), 500));
       }, 175);
       browserCaptureTimers.push(exteriorTimer);
       setCameraNote(sameCamera
