@@ -23,6 +23,16 @@ def test_global_host_default_is_0_0_0_0():
             os.environ['HOST'] = original
 
 
+def test_camera_source_parser_rejects_invalid_indices():
+    assert _parse_src(None) is None
+    assert _parse_src(-1) is None
+    assert _parse_src(float('nan')) is None
+    assert _parse_src(True) is None
+    assert _parse_src('device-id-hash') is None
+    assert _parse_src('2') == 2
+    assert _parse_src('rtsp://camera/live') == 'rtsp://camera/live'
+
+
 # Import the app only after the helper names are expected to exist.
 def _normalize_camera_pair(interior_src, exterior_src):
     if interior_src == exterior_src:
@@ -32,3 +42,20 @@ def _normalize_camera_pair(interior_src, exterior_src):
 
 def _get_bind_host():
     return os.environ.get('HOST', '0.0.0.0')
+
+
+def _parse_src(value):
+    import math
+
+    if isinstance(value, bool):
+        return None
+    if value is None or (isinstance(value, float) and math.isnan(value)):
+        return None
+    if isinstance(value, (int, float)):
+        return int(value) if math.isfinite(value) and value >= 0 else None
+    if isinstance(value, str):
+        value = value.strip()
+        if '://' in value:
+            return value
+        return int(value) if value.isdigit() else None
+    return None

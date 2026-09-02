@@ -294,19 +294,23 @@ function startBrowserCameraCapture() {
       const sendFrame = (video, side) => {
         if (video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) return;
         const canvas = document.createElement('canvas');
-        canvas.width = video.videoWidth || 640;
-        canvas.height = video.videoHeight || 480;
+        const sourceWidth = video.videoWidth || 640;
+        const sourceHeight = video.videoHeight || 480;
+        const maxWidth = 640;
+        const scale = Math.min(1, maxWidth / sourceWidth);
+        canvas.width = Math.max(1, Math.round(sourceWidth * scale));
+        canvas.height = Math.max(1, Math.round(sourceHeight * scale));
         const ctx = canvas.getContext('2d');
         if (!ctx) return;
         ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-        const dataUrl = canvas.toDataURL('image/jpeg', 0.72);
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.58);
         socket.emit('browser_frame', { side, image: dataUrl });
         browserFrameCount += 1;
       };
 
       browserFrameWindowStart = performance.now();
-      browserCaptureTimers.push(setInterval(() => sendFrame(interiorVideo, 'interior'), 220));
-      browserCaptureTimers.push(setInterval(() => sendFrame(exteriorVideo, 'exterior'), 220));
+      browserCaptureTimers.push(setInterval(() => sendFrame(interiorVideo, 'interior'), 350));
+      browserCaptureTimers.push(setInterval(() => sendFrame(exteriorVideo, 'exterior'), 350));
       setCameraNote(sameCamera
         ? 'Camera detected. One camera is feeding both monitoring views.'
         : 'Both cameras detected and streaming.', 'ok');

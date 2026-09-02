@@ -44,7 +44,14 @@ browser_capture_mode = False
 interior_frame_bytes = None
 exterior_frame_bytes = None
 frame_lock  = threading.Lock()
+browser_frame_lock = threading.Lock()
+browser_frame_times = {'interior': 0.0, 'exterior': 0.0}
 debug_logs  = deque(maxlen=1000)
+
+# Browser uploads are deliberately bounded so a hosted instance cannot be
+# overwhelmed by camera bandwidth or concurrent inference requests.
+BROWSER_FRAME_MAX_BYTES = int(os.environ.get('BROWSER_FRAME_MAX_BYTES', '450000'))
+BROWSER_FRAME_MIN_INTERVAL = float(os.environ.get('BROWSER_FRAME_MIN_INTERVAL', '0.3'))
 
 
 def log_debug(msg):
@@ -156,7 +163,12 @@ def _parse_src(v):
     if isinstance(v, float) and math.isnan(v):
         return None
 
+    if isinstance(v, bool):
+        return None
+
     if isinstance(v, (int, float)):
+        if not math.isfinite(v) or v < 0:
+            return None
         return int(v)
 
     if isinstance(v, str):
@@ -479,8 +491,10 @@ def monitoring_loop(interior_src=0, exterior_src=1):
 
         time.sleep(0.04)
 
-    if cap_in  and cap_in.isOpened():  cap_in.release()
-    if cap_ext and cap_ext.isOpened(): cap_ext.release()
+    if cap_in is not None:
+        cap_in.release()
+    if cap_ext is not None:
+        cap_ext.release()
 
 
 def _demo_frame(label, shape, bg_color):
@@ -581,11 +595,16 @@ def start_monitoring():
         log_debug(f"Same index conflict resolved — interior_src={interior_src} exterior_src={exterior_src}")
 
     if capture_mode == 'browser':
+        if monitor_thread is not None and monitor_thread.is_alive():
+            return jsonify({'status': 'already_running', 'mode': 'local'})
         browser_capture_mode = True
         monitoring_active = True
         return jsonify({'status': 'started', 'mode': 'browser',
                         'interior_src': interior_src,
                         'exterior_src': exterior_src})
+
+    if monitor_thread is not None and monitor_thread.is_alive():
+        return jsonify({'status': 'already_running', 'mode': 'local'})
 
     if not monitoring_active:
         monitoring_active = True
@@ -603,9 +622,14 @@ def start_monitoring():
 
 @app.route('/api/monitoring/stop', methods=['POST'])
 def stop_monitoring():
-    global monitoring_active, browser_capture_mode
+    global monitoring_active, browser_capture_mode, monitor_thread
     monitoring_active = False
     browser_capture_mode = False
+    if monitor_thread is not None and monitor_thread.is_alive() and \
+            monitor_thread is not threading.current_thread():
+        monitor_thread.join(timeout=1.0)
+    if monitor_thread is not None and not monitor_thread.is_alive():
+        monitor_thread = None
     return jsonify({'status': 'stopped'})
 
 @app.route('/api/monitoring/status')
@@ -667,13 +691,33 @@ def on_connect():
 
 @socketio.on('browser_frame')
 def on_browser_frame(data):
+    global browser_frame_times
     if not data:
         return
     if not monitoring_active:
         return
     side = (data.get('side') or 'interior').lower()
     image_data = data.get('image') or ''
-    _process_browser_frame(image_data, side)
+    if side not in ('interior', 'exterior') or not isinstance(image_data, str):
+        return
+    if len(image_data) > BROWSER_FRAME_MAX_BYTES:
+        log_debug(f"Dropped oversized browser {side} frame ({len(image_data)} bytes)")
+        return
+
+    now = time.monotonic()
+    with frame_lock:
+        if now - browser_frame_times[side] < BROWSER_FRAME_MIN_INTERVAL:
+            return
+        browser_frame_times[side] = now
+
+    # Inference is CPU-heavy; serialize uploads so concurrent socket events
+    # cannot multiply the workload on a small hosted instance.
+    if not browser_frame_lock.acquire(blocking=False):
+        return
+    try:
+        _process_browser_frame(image_data, side)
+    finally:
+        browser_frame_lock.release()
 
 
 @socketio.on('alert_responded')
