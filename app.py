@@ -90,6 +90,7 @@ def _process_browser_frame(frame_b64, side):
     if side == 'interior':
         driver_results = driver_monitor.process(frame, input_valid=True)
         annotated = driver_monitor.annotate(frame.copy(), driver_results)
+        alerts = alert_system.evaluate(driver_results, {'camera_signal': False})
         _, buf = cv2.imencode('.jpg', annotated, [cv2.IMWRITE_JPEG_QUALITY, 70])
         with frame_lock:
             interior_frame_bytes = base64.b64encode(buf.tobytes()).decode('utf-8')
@@ -100,9 +101,9 @@ def _process_browser_frame(frame_b64, side):
         socketio.emit('status_update', {
             'driver': driver_results,
             'road': {'camera_signal': False},
-            'alerts': [],
+            'alerts': alerts,
             'fps': float(driver_monitor.fps),
-            'caps': {'interior_ok': True, 'exterior_ok': False},
+            'caps': {'interior_ok': True, 'exterior_ok': bool(exterior_frame_bytes)},
         })
         return
 
@@ -121,7 +122,7 @@ def _process_browser_frame(frame_b64, side):
             'road': road_results,
             'alerts': alert_system.evaluate({'sleeping': False, 'drowsy': False}, road_results),
             'fps': float(driver_monitor.fps),
-            'caps': {'interior_ok': False, 'exterior_ok': True},
+            'caps': {'interior_ok': bool(interior_frame_bytes), 'exterior_ok': True},
         })
 
 
