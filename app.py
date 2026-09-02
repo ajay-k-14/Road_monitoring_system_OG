@@ -608,7 +608,7 @@ def settings():
 # ── API ────────────────────────────────────────────────────────────
 @app.route('/api/monitoring/start', methods=['POST'])
 def start_monitoring():
-    global monitoring_active, monitor_thread, browser_capture_mode
+    global monitoring_active, monitor_thread, browser_capture_mode, browser_worker_thread
 
     data    = request.get_json(silent=True) or {}
     raw_in  = data.get('interior_src', 0)
