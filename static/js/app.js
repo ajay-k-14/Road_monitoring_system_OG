@@ -310,7 +310,11 @@ function startBrowserCameraCapture() {
 
       browserFrameWindowStart = performance.now();
       browserCaptureTimers.push(setInterval(() => sendFrame(interiorVideo, 'interior'), 350));
-      browserCaptureTimers.push(setInterval(() => sendFrame(exteriorVideo, 'exterior'), 350));
+      const exteriorTimer = setTimeout(() => {
+        sendFrame(exteriorVideo, 'exterior');
+        browserCaptureTimers.push(setInterval(() => sendFrame(exteriorVideo, 'exterior'), 350));
+      }, 175);
+      browserCaptureTimers.push(exteriorTimer);
       setCameraNote(sameCamera
         ? 'Camera detected. One camera is feeding both monitoring views.'
         : 'Both cameras detected and streaming.', 'ok');

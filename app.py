@@ -46,6 +46,8 @@ exterior_frame_bytes = None
 frame_lock  = threading.Lock()
 browser_frame_lock = threading.Lock()
 browser_frame_times = {'interior': 0.0, 'exterior': 0.0}
+browser_pending_frames = {}
+browser_worker_thread = None
 debug_logs  = deque(maxlen=1000)
 
 # Browser uploads are deliberately bounded so a hosted instance cannot be
@@ -116,6 +118,31 @@ def _process_browser_frame(frame_b64, side):
             'fps': float(driver_monitor.fps),
             'caps': {'interior_ok': False, 'exterior_ok': True},
         })
+
+
+def _browser_frame_worker():
+    global browser_worker_thread
+    next_side = 'interior'
+    while monitoring_active:
+        frame = None
+        side = None
+        with browser_frame_lock:
+            for candidate in (next_side, 'exterior' if next_side == 'interior' else 'interior'):
+                if candidate in browser_pending_frames:
+                    side = candidate
+                    frame = browser_pending_frames.pop(candidate)
+                    next_side = 'exterior' if candidate == 'interior' else 'interior'
+                    break
+        if frame is None:
+            time.sleep(0.01)
+            continue
+        try:
+            _process_browser_frame(frame, side)
+        except Exception as exc:
+            log_debug(f"Browser {side} frame processing failed: {exc}")
+    with browser_frame_lock:
+        browser_pending_frames.clear()
+    browser_worker_thread = None
 
 
 @login_manager.user_loader
@@ -691,7 +718,7 @@ def on_connect():
 
 @socketio.on('browser_frame')
 def on_browser_frame(data):
-    global browser_frame_times
+    global browser_frame_times, browser_worker_thread
     if not data:
         return
     if not monitoring_active:
@@ -710,14 +737,14 @@ def on_browser_frame(data):
             return
         browser_frame_times[side] = now
 
-    # Inference is CPU-heavy; serialize uploads so concurrent socket events
-    # cannot multiply the workload on a small hosted instance.
-    if not browser_frame_lock.acquire(blocking=False):
-        return
-    try:
-        _process_browser_frame(image_data, side)
-    finally:
-        browser_frame_lock.release()
+    with browser_frame_lock:
+        browser_pending_frames[side] = image_data
+        worker_running = browser_worker_thread is not None and browser_worker_thread.is_alive()
+        if not worker_running:
+            browser_worker_thread = threading.Thread(
+                target=_browser_frame_worker, daemon=True
+            )
+            browser_worker_thread.start()
 
 
 @socketio.on('alert_responded')
