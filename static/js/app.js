@@ -362,6 +362,7 @@ async function applyCameraSelection() {
 
 function setMonitoringUI(active) {
   resetExteriorState();
+  if (!active && fpsVal) fpsVal.textContent = '0.0';
   btnStart.disabled = active;
   btnStop.disabled  = !active;
   statusDot.classList.toggle('active', active);

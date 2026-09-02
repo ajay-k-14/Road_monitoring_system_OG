@@ -122,6 +122,7 @@ def _process_browser_frame(frame_b64, side):
 
 def _browser_frame_worker():
     global browser_worker_thread
+    worker = threading.current_thread()
     next_side = 'interior'
     while monitoring_active:
         frame = None
@@ -142,7 +143,9 @@ def _browser_frame_worker():
             log_debug(f"Browser {side} frame processing failed: {exc}")
     with browser_frame_lock:
         browser_pending_frames.clear()
-    browser_worker_thread = None
+    with browser_frame_lock:
+        if browser_worker_thread is worker:
+            browser_worker_thread = None
 
 
 @login_manager.user_loader
@@ -626,6 +629,13 @@ def start_monitoring():
             return jsonify({'status': 'already_running', 'mode': 'local'})
         browser_capture_mode = True
         monitoring_active = True
+        with browser_frame_lock:
+            browser_pending_frames.clear()
+            if browser_worker_thread is None or not browser_worker_thread.is_alive():
+                browser_worker_thread = threading.Thread(
+                    target=_browser_frame_worker, daemon=True
+                )
+                browser_worker_thread.start()
         return jsonify({'status': 'started', 'mode': 'browser',
                         'interior_src': interior_src,
                         'exterior_src': exterior_src})
@@ -649,7 +659,7 @@ def start_monitoring():
 
 @app.route('/api/monitoring/stop', methods=['POST'])
 def stop_monitoring():
-    global monitoring_active, browser_capture_mode, monitor_thread
+    global monitoring_active, browser_capture_mode, monitor_thread, browser_worker_thread
     monitoring_active = False
     browser_capture_mode = False
     if monitor_thread is not None and monitor_thread.is_alive() and \
@@ -657,6 +667,10 @@ def stop_monitoring():
         monitor_thread.join(timeout=1.0)
     if monitor_thread is not None and not monitor_thread.is_alive():
         monitor_thread = None
+    if browser_worker_thread is not None and browser_worker_thread.is_alive():
+        browser_worker_thread.join(timeout=1.0)
+    if browser_worker_thread is not None and not browser_worker_thread.is_alive():
+        browser_worker_thread = None
     return jsonify({'status': 'stopped'})
 
 @app.route('/api/monitoring/status')
@@ -739,12 +753,6 @@ def on_browser_frame(data):
 
     with browser_frame_lock:
         browser_pending_frames[side] = image_data
-        worker_running = browser_worker_thread is not None and browser_worker_thread.is_alive()
-        if not worker_running:
-            browser_worker_thread = threading.Thread(
-                target=_browser_frame_worker, daemon=True
-            )
-            browser_worker_thread.start()
 
 
 @socketio.on('alert_responded')
