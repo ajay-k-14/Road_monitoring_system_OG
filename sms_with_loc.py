@@ -17,11 +17,11 @@ def get_windows_ip_location():
 def send_sos():
     # --- PHONE GATEWAY CONFIGURATION ---
     # Put the exact IP, port, and credentials shown inside your phone's app
-    GATEWAY_URL = "http://192.168.1.7:8080"  # Change to your phone's IP
+    GATEWAY_URL = "http://192.168.1.10:8080"  # Change to your phone's IP
     USERNAME = "sms"  # As set in the app
     PASSWORD = "cD0F3vaW"  # As set in the app
 
-    TARGET_NUMBERS = ["+917356006016"]  # Target recipient
+    TARGET_NUMBERS = ["+919496917539"]  # Target recipient
     ALERT_TEXT = "EMERGENCY SOS: Accident / Hazard detected!"
 
     print("Fetching location...")
