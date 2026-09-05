@@ -364,7 +364,7 @@ async function applyCameraSelection() {
 }
 
 function setMonitoringUI(active) {
-  resetExteriorState();
+  resetExteriorState(true);
   if (!active && fpsVal) fpsVal.textContent = '0.0';
   btnStart.disabled = active;
   btnStop.disabled  = !active;
@@ -376,7 +376,7 @@ function setMonitoringUI(active) {
   roadBadge.classList.toggle('live', active);
 }
 
-function resetExteriorState() {
+function resetExteriorState(clearFeed = false) {
   updateIndicator('lane', false, false);
   updateIndicator('overspeed', false, false);
   updateIndicator('pedestrian', false, false);
@@ -386,7 +386,7 @@ function resetExteriorState() {
   if (objVal) { objVal.textContent = '0'; objVal.style.color = 'var(--accent)'; }
   if (speedVal) speedVal.textContent = '0';
   if (speedArc) speedArc.style.strokeDashoffset = ARC_TOTAL;
-  if (exteriorFeed) exteriorFeed.removeAttribute('src');
+  if (clearFeed && exteriorFeed) exteriorFeed.removeAttribute('src');
 }
 
 // ── Socket Events ─────────────────────────────────────────────────
@@ -549,8 +549,8 @@ function playAlertBeep(severity) {
     osc.frequency.value = freqMap[severity] || 440;
     osc.type = 'square';
     gain.gain.setValueAtTime(0.08, audioCtx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.3);
-    osc.start(audioCtx.currentTime); osc.stop(audioCtx.currentTime + 0.3);
+    gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 10.0);
+    osc.start(audioCtx.currentTime); osc.stop(audioCtx.currentTime + 10.0);
   } catch (e) {}
 }
 

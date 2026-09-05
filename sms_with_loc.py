@@ -21,7 +21,7 @@ def send_sos():
     USERNAME = "sms"  # As set in the app
     PASSWORD = "cD0F3vaW"  # As set in the app
 
-    TARGET_NUMBERS = ["+919496917539"]  # Target recipient
+    TARGET_NUMBERS = ["+917356006016"]  # Target recipient
     ALERT_TEXT = "EMERGENCY SOS: Accident / Hazard detected!"
 
     print("Fetching location...")
