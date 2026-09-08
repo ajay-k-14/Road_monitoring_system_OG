@@ -59,6 +59,12 @@ class RoadMonitor:
 
         # Lane deviation state
         self._lane_centre_history = deque(maxlen=15)
+        self._yolo_frame_count = 0
+        self._last_objects = {
+            'vehicles_detected': [],
+            'pedestrians_detected': [],
+            'obstacles_detected': [],
+        }
 
     # ─────────────────────────────────────────────
     #  Public API
@@ -86,6 +92,7 @@ class RoadMonitor:
             self._prev_gray = None
             self._speed_history.clear()
             self._lane_centre_history.clear()
+            self._last_objects = {key: [] for key in self._last_objects}
             return results
 
         # ── Lane detection ────────────────────────────────
@@ -93,7 +100,13 @@ class RoadMonitor:
 
         # ── Object detection (YOLO) ───────────────────────
         if self._yolo is not None:
-            self._detect_objects(frame, results)
+            self._yolo_frame_count += 1
+            if (self._yolo_frame_count - 1) % max(1, self.cfg.ROAD_YOLO_INTERVAL) == 0:
+                detected = {key: [] for key in self._last_objects}
+                self._detect_objects(frame, detected)
+                self._last_objects = detected
+            for key, objects in self._last_objects.items():
+                results[key].extend(objects)
 
         if not (results['_left_xs'] and results['_right_xs']):
             results['lane_deviation'] = False
@@ -267,7 +280,12 @@ class RoadMonitor:
 
     def _detect_objects(self, frame, results):
         detections = self._yolo.predict(
-            frame, conf=self.cfg.YOLO_CONFIDENCE, verbose=False
+            frame,
+            conf=self.cfg.YOLO_CONFIDENCE,
+            classes=sorted(ALL_ROAD_CLASSES),
+            imgsz=self.cfg.YOLO_IMAGE_SIZE,
+            max_det=20,
+            verbose=False,
         )
         for det in detections:
             for box in det.boxes:

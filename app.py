@@ -13,6 +13,14 @@ from flask_socketio import SocketIO, emit
 from flask_login import LoginManager
 import numpy as np
 from collections import deque
+from config import Config
+
+try:
+    import torch
+    torch.set_num_threads(max(1, Config.TORCH_NUM_THREADS))
+    torch.set_num_interop_threads(max(1, Config.TORCH_NUM_THREADS))
+except Exception:
+    pass
 
 from database.db import (
     init_db, get_db, User, Vehicle, EmergencyContact,
@@ -21,7 +29,6 @@ from database.db import (
 from modules.driver_monitor import DriverMonitor
 from modules.road_monitor import RoadMonitor
 from modules.alert_system import AlertSystem
-from config import Config
 
 # ─────────────────────────────────────────────
 #  App Initialization
@@ -29,6 +36,8 @@ from config import Config
 app = Flask(__name__)
 app.config.from_object(Config)
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode='threading')
+# Avoid OpenCV creating a large worker pool on CPU-only laptops.
+cv2.setNumThreads(1)
 login_manager = LoginManager(app)
 login_manager.login_view = 'login'
 
@@ -141,7 +150,7 @@ def _browser_frame_worker():
                     next_side = 'exterior' if candidate == 'interior' else 'interior'
                     break
         if frame is None:
-            time.sleep(0.01)
+            time.sleep(0.03)
             continue
         try:
             _process_browser_frame(frame, side)
@@ -240,6 +249,9 @@ def monitoring_loop(interior_src=0, exterior_src=1):
                     try:
                         cap = cv2.VideoCapture(src, backend) if backend is not None else cv2.VideoCapture(src)
                         if cap and cap.isOpened():
+                            cap.set(cv2.CAP_PROP_FRAME_WIDTH, Config.CAMERA_CAPTURE_WIDTH)
+                            cap.set(cv2.CAP_PROP_FRAME_HEIGHT, Config.CAMERA_CAPTURE_HEIGHT)
+                            cap.set(cv2.CAP_PROP_FPS, Config.CAMERA_CAPTURE_FPS)
                             log_debug(f"Opened cam index {src} backend={backend}")
                             return cap
                         if cap:
@@ -253,6 +265,9 @@ def monitoring_loop(interior_src=0, exterior_src=1):
                     try:
                         cap = cv2.VideoCapture(src) if backend is None else cv2.VideoCapture(src, backend)
                         if cap and cap.isOpened():
+                            cap.set(cv2.CAP_PROP_FRAME_WIDTH, Config.CAMERA_CAPTURE_WIDTH)
+                            cap.set(cv2.CAP_PROP_FRAME_HEIGHT, Config.CAMERA_CAPTURE_HEIGHT)
+                            cap.set(cv2.CAP_PROP_FPS, Config.CAMERA_CAPTURE_FPS)
                             log_debug(f"Opened stream source {src} backend={backend}")
                             return cap
                         if cap:
@@ -418,6 +433,17 @@ def monitoring_loop(interior_src=0, exterior_src=1):
     frame_count    = 0
     interior_fails = 0
     exterior_fails = 0
+    process_interval = 1.0 / max(1, Config.PROCESSING_FPS)
+    last_cycle_at = 0.0
+
+    def _prepare_frame(frame):
+        if frame is None or frame.shape[1] <= Config.MAX_FRAME_WIDTH:
+            return frame
+        scale = Config.MAX_FRAME_WIDTH / frame.shape[1]
+        return cv2.resize(frame, (
+            Config.MAX_FRAME_WIDTH,
+            max(1, int(frame.shape[0] * scale)),
+        ), interpolation=cv2.INTER_AREA)
 
     def _sanitize_json(obj):
         if isinstance(obj, dict):
@@ -434,6 +460,10 @@ def monitoring_loop(interior_src=0, exterior_src=1):
         return str(obj)
 
     while monitoring_active:
+        wait_for = process_interval - (time.monotonic() - last_cycle_at)
+        if last_cycle_at and wait_for > 0:
+            time.sleep(wait_for)
+        last_cycle_at = time.monotonic()
         frame_count += 1
 
         # ── Interior frame ─────────────────────────────
@@ -474,6 +504,9 @@ def monitoring_loop(interior_src=0, exterior_src=1):
         else:
             ext_frame = _demo_frame("Demo — Exterior Camera", (480, 640, 3), (20, 40, 20))
             exterior_signal = False
+
+        in_frame = _prepare_frame(in_frame)
+        ext_frame = _prepare_frame(ext_frame)
 
         if exterior_fails > 5:
             log_debug("Reconnecting exterior…")
@@ -524,8 +557,6 @@ def monitoring_loop(interior_src=0, exterior_src=1):
                 'exterior_ok': bool(exterior_ok),
             }
         })
-
-        time.sleep(0.04)
 
     if cap_in is not None:
         cap_in.release()

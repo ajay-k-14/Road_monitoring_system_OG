@@ -75,6 +75,8 @@ class DriverMonitor:
         self._distraction_start = None
         self._phone_start       = None
         self._phone_detector    = yolo_model
+        self._phone_frame_count = 0
+        self._last_phone_objects = []
 
         # State memory (for UI)
         self._last_results = {}
@@ -84,12 +86,12 @@ class DriverMonitor:
             mp_hands = mp_solutions.hands
             self._face_mesh = mp_face.FaceMesh(
                 max_num_faces=1,
-                refine_landmarks=True,
+                refine_landmarks=self.cfg.REFINE_FACE_LANDMARKS,
                 min_detection_confidence=0.5,
                 min_tracking_confidence=0.5,
             )
             self._hands = mp_hands.Hands(
-                max_num_hands=2,
+                max_num_hands=self.cfg.MAX_HANDS,
                 min_detection_confidence=0.5,
                 min_tracking_confidence=0.5,
             )
@@ -133,10 +135,14 @@ class DriverMonitor:
 
         if not input_valid or not MEDIAPIPE_OK:
             self._reset_temporal_state()
+            self._last_phone_objects = []
             results['monitoring_valid'] = False
             return results
 
-        results['phone_objects'] = self._detect_phone_objects(frame)
+        self._phone_frame_count += 1
+        if (self._phone_frame_count - 1) % max(1, self.cfg.PHONE_YOLO_INTERVAL) == 0:
+            self._last_phone_objects = self._detect_phone_objects(frame)
+        results['phone_objects'] = list(self._last_phone_objects)
         results['phone_detected'] = bool(results['phone_objects'])
 
         # ── Face Mesh ──────────────────────────────────────
@@ -261,7 +267,7 @@ class DriverMonitor:
                 frame,
                 conf=self.cfg.PHONE_YOLO_CONFIDENCE,
                 classes=[67],
-                imgsz=640,
+                imgsz=self.cfg.YOLO_IMAGE_SIZE,
                 verbose=False,
             )
             phones = []

@@ -30,6 +30,19 @@ class Config:
     MIN_FACE_WIDTH_RATIO = 0.12
 
     # ── Road Monitor Thresholds ──────────────────────────
+    # Keep the CPU-bound vision pipeline bounded on laptops.
+    PROCESSING_FPS          = int(os.environ.get('PROCESSING_FPS', '8'))
+    MAX_FRAME_WIDTH         = int(os.environ.get('MAX_FRAME_WIDTH', '640'))
+    CAMERA_CAPTURE_FPS      = int(os.environ.get('CAMERA_CAPTURE_FPS', '15'))
+    CAMERA_CAPTURE_WIDTH    = int(os.environ.get('CAMERA_CAPTURE_WIDTH', '640'))
+    CAMERA_CAPTURE_HEIGHT   = int(os.environ.get('CAMERA_CAPTURE_HEIGHT', '480'))
+    ROAD_YOLO_INTERVAL      = int(os.environ.get('ROAD_YOLO_INTERVAL', '3'))
+    PHONE_YOLO_INTERVAL     = int(os.environ.get('PHONE_YOLO_INTERVAL', '3'))
+    YOLO_IMAGE_SIZE         = int(os.environ.get('YOLO_IMAGE_SIZE', '416'))
+    TORCH_NUM_THREADS       = int(os.environ.get('TORCH_NUM_THREADS', '2'))
+    REFINE_FACE_LANDMARKS   = os.environ.get('REFINE_FACE_LANDMARKS', 'false').lower() == 'true'
+    MAX_HANDS               = int(os.environ.get('MAX_HANDS', '1'))
+
     # Lane deviation: fraction of frame width
     LANE_DEVIATION_THRESHOLD = 0.15
     # Speed over which alert fires (km/h) — estimated
