@@ -129,7 +129,7 @@ def init_db():
     db = get_db()
     try:
         if db.query(User).count() == 0:
-            demo = User(name='Demo Driver', email='123@gmail.com', phone='+91-9000000000')
+            demo = User(name='Demo Driver', email='demo@dms.com', phone='+91-9000000000')
             demo.set_password('demo1234')
             db.add(demo)
             db.commit()
