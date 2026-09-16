@@ -126,7 +126,7 @@ class AlertSystem:
         if self.socketio:
             self.socketio.emit('alert', self._to_dict(alert))
 
-        # Schedule SMS escalation for HIGH / CRITICAL
+        # Schedule escalation timer for HIGH / CRITICAL alerts without external SMS integration.
         if severity in ('HIGH', 'CRITICAL'):
             t = threading.Timer(
                 self.cfg.ALERT_ESCALATION_SECONDS,
@@ -140,13 +140,12 @@ class AlertSystem:
         return alert
 
     def _escalate(self, alert: Alert):
-        """Send emergency SMS via Twilio if driver did not respond."""
+        """Emit a local escalation notification when a driver does not respond."""
         if alert.responded:
             return
 
         print(f"[AlertSystem] Escalating alert: {alert.type} — {alert.message}")
 
-        # Emit dashboard notification
         if self.socketio:
             self.socketio.emit('emergency_escalation', {
                 'alert_id': alert.id,
@@ -155,37 +154,9 @@ class AlertSystem:
                 'source':   alert.source,
             })
 
-        # Twilio SMS (only if credentials configured)
-        if self.cfg.TWILIO_SID and self.cfg.TWILIO_TOKEN:
-            self._send_sms(alert)
-        else:
-            print("[AlertSystem] Twilio not configured — SMS skipped")
-
     def _send_sms(self, alert: Alert):
-        try:
-            from twilio.rest import Client
-            from database.db import get_db, EmergencyContact
-
-            db       = get_db()
-            contacts = db.query(EmergencyContact).limit(5).all()
-            client   = Client(self.cfg.TWILIO_SID, self.cfg.TWILIO_TOKEN)
-
-            for contact in contacts:
-                body = (
-                    f"🚨 DRIVER ALERT\n"
-                    f"Type: {alert.type}\n"
-                    f"{alert.message}\n"
-                    f"Driver may need assistance. Please check."
-                )
-                client.messages.create(
-                    body=body,
-                    from_=self.cfg.TWILIO_FROM,
-                    to=contact.phone,
-                )
-                print(f"[AlertSystem] SMS sent to {contact.name} ({contact.phone})")
-            db.close()
-        except Exception as e:
-            print(f"[AlertSystem] SMS error: {e}")
+        # SMS integration was removed; this method is intentionally unused.
+        return None
 
     @staticmethod
     def _to_dict(alert: Alert) -> dict:
