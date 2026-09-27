@@ -154,10 +154,6 @@ class AlertSystem:
                 'source':   alert.source,
             })
 
-    def _send_sms(self, alert: Alert):
-        # SMS integration was removed; this method is intentionally unused.
-        return None
-
     @staticmethod
     def _to_dict(alert: Alert) -> dict:
         return {

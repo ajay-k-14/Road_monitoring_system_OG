@@ -2,3 +2,4 @@
 _pycache/_
 *.pyc
 .python-version
+driver_monitor.db
