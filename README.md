@@ -63,6 +63,22 @@ terminates TLS itself, set `SSL_CERT_FILE` and `SSL_KEY_FILE` to the certificate
 and private-key paths before starting it. If a hosting provider terminates TLS,
 use its HTTPS URL and keep the app bound to `0.0.0.0`.
 
+### Emergency SMS configuration
+
+Add these environment variables before starting the app:
+
+```powershell
+$env:SMS_GATE_USERNAME = "your-smsgate-username"
+$env:SMS_GATE_PASSWORD = "your-smsgate-password"
+```
+
+When a `HIGH` or `CRITICAL` alert is not acknowledged within
+`ALERT_ESCALATION_SECONDS` (4 seconds by default), the app sends one SMS to
+every emergency contact saved in Dashboard > Settings. The message includes a
+Google Maps link when browser location permission is available; otherwise it
+states that the location is unavailable. Camera and location access require a
+secure context such as HTTPS (localhost is also allowed).
+
 <!-- ### 4. Demo login
 ```
 Email:    demo@dms.com

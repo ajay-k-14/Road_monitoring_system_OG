@@ -76,6 +76,7 @@ class RoadMonitor:
         results = {
             'camera_signal':       bool(input_valid),
             'road_detected':       False,
+            'lane_detected':       False,
             'lane_deviation':       False,
             'deviation_side':       None,    # 'LEFT' | 'RIGHT'
             'deviation_pct':        0.0,
@@ -138,7 +139,7 @@ class RoadMonitor:
 
         if not results.get('road_detected', False):
             h, w = frame.shape[:2]
-            cv2.putText(frame, 'NO ROAD DETECTED', (w // 2 - 125, h // 2),
+            cv2.putText(frame, 'NO ROAD DETECTED', (w // 2 - 205, h // 2),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255), 2)
             return frame
 
@@ -201,7 +202,7 @@ class RoadMonitor:
     # ─────────────────────────────────────────────
 
     def _detect_lanes(self, frame, results, h, w):
-        """Canny + Hough line lane detection with ROI masking."""
+        """Detect lane boundaries and estimate lane-center offset."""
         gray    = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         blurred = cv2.GaussianBlur(gray, (5, 5), 0)
         edges   = cv2.Canny(blurred, 50, 150)
@@ -219,7 +220,9 @@ class RoadMonitor:
             threshold=40, minLineLength=60, maxLineGap=80
         )
 
-        left_xs, right_xs = [], []
+        bottom_y = int(h * 0.95)
+        top_y = int(h * 0.58)
+        candidates = {'left': [], 'right': []}
         if lines is not None:
             for line in lines:
                 x1, y1, x2, y2 = line[0]
@@ -229,35 +232,54 @@ class RoadMonitor:
                 if abs(slope) < 0.3:
                     continue
                 mid_x = (x1 + x2) / 2
-                if slope < 0 and mid_x < w * 0.5:   # left lane
-                    left_xs.append(int(mid_x))
-                elif slope > 0 and mid_x > w * 0.5: # right lane
-                    right_xs.append(int(mid_x))
+                side = 'left' if slope < 0 and mid_x < w * 0.5 else \
+                       'right' if slope > 0 and mid_x > w * 0.5 else None
+                if side is None:
+                    continue
+                x_bottom = x1 + (bottom_y - y1) / slope
+                if -w * 0.1 <= x_bottom <= w * 1.1:
+                    candidates[side].append((x_bottom, slope))
+
+        lane_lines = {}
+        boundary_xs = {}
+        for side, side_candidates in candidates.items():
+            if not side_candidates:
+                continue
+            boundary_x = float(np.median([item[0] for item in side_candidates]))
+            boundary_slope = float(np.median([item[1] for item in side_candidates]))
+            top_x = int(round(boundary_x + (top_y - bottom_y) / boundary_slope))
+            bottom_x = int(round(boundary_x))
+            lane_lines[side] = (top_x, top_y, bottom_x, bottom_y)
+            boundary_xs[side] = bottom_x
 
         # Store roi pts for drawing
         results['_roi_pts']    = roi_pts
-        results['_left_xs']    = left_xs
-        results['_right_xs']   = right_xs
+        results['_left_xs']    = [boundary_xs['left']] if 'left' in boundary_xs else []
+        results['_right_xs']   = [boundary_xs['right']] if 'right' in boundary_xs else []
+        results['_lane_lines'] = lane_lines
+        results['lane_detected'] = bool(boundary_xs)
 
-        if left_xs and right_xs:
-            lane_cx = (np.mean(left_xs) + np.mean(right_xs)) / 2
-        elif left_xs:
-            lane_cx = np.mean(left_xs) + w * 0.20
-        elif right_xs:
-            lane_cx = np.mean(right_xs) - w * 0.20
+        if 'left' in boundary_xs and 'right' in boundary_xs:
+            lane_cx = (boundary_xs['left'] + boundary_xs['right']) / 2
+        elif 'left' in boundary_xs:
+            lane_cx = boundary_xs['left'] + w * 0.20
+        elif 'right' in boundary_xs:
+            lane_cx = boundary_xs['right'] - w * 0.20
         else:
             lane_cx = w / 2
 
-        self._lane_centre_history.append(lane_cx)
-        smooth_cx = np.mean(self._lane_centre_history)
+        if boundary_xs:
+            self._lane_centre_history.append(lane_cx)
+            smooth_cx = np.mean(self._lane_centre_history)
+        else:
+            self._lane_centre_history.clear()
+            smooth_cx = w / 2
 
         deviation = (smooth_cx - w / 2) / (w / 2)
         results['lane_centre_x']  = int(smooth_cx)
         results['frame_centre_x'] = w // 2
-        results['deviation_pct']  = round(abs(deviation) * 100, 1)
-
-        if (left_xs and right_xs and
-            abs(deviation) > self.cfg.LANE_DEVIATION_THRESHOLD):
+        results['deviation_pct']  = round(abs(deviation) * 100, 1) if boundary_xs else 0.0
+        if boundary_xs and abs(deviation) > self.cfg.LANE_DEVIATION_THRESHOLD:
             results['lane_deviation'] = True
             results['deviation_side'] = 'RIGHT' if deviation > 0 else 'LEFT'
 
@@ -267,6 +289,9 @@ class RoadMonitor:
         roi_pts = results.get('_roi_pts')
         if roi_pts is not None:
             cv2.polylines(overlay, roi_pts, True, (100, 100, 100), 1)
+
+        for x1, y1, x2, y2 in results.get('_lane_lines', {}).values():
+            cv2.line(frame, (x1, y1), (x2, y2), (0, 220, 255), 3)
 
         cx = results['lane_centre_x']
         mid = w // 2

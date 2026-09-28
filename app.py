@@ -13,6 +13,10 @@ from flask_socketio import SocketIO, emit
 from flask_login import LoginManager
 import numpy as np
 from collections import deque
+from dotenv import load_dotenv
+
+load_dotenv()
+
 from config import Config
 
 try:
@@ -24,7 +28,7 @@ except Exception:
 
 from database.db import (
     init_db, get_db, User, Vehicle, EmergencyContact,
-    create_user, get_user_by_email, log_alert, get_alert_history
+    create_user, get_user_by_email, get_alert_history
 )
 from modules.driver_monitor import DriverMonitor
 from modules.road_monitor import RoadMonitor
@@ -531,9 +535,6 @@ def monitoring_loop(interior_src=0, exterior_src=1):
 
         # ── Alerts ──────────────────────────────────────
         alerts = alert_system.evaluate(driver_results, road_results)
-        if alerts:
-            for alert in alerts:
-                log_alert(alert['type'], alert['severity'], alert['message'])
 
         # ── Encode & Emit ───────────────────────────────
         _, buf_in  = cv2.imencode('.jpg', annotated_in,  [cv2.IMWRITE_JPEG_QUALITY, 70])
@@ -643,6 +644,9 @@ def start_monitoring():
     global monitoring_active, monitor_thread, browser_capture_mode, browser_worker_thread
 
     data    = request.get_json(silent=True) or {}
+    if 'user_id' not in session:
+        return jsonify({'error': 'Unauthorized'}), 401
+    alert_system.set_user_context(session['user_id'])
     raw_in  = data.get('interior_src', 0)
     raw_ext = data.get('exterior_src', 1)
     capture_mode = data.get('capture_mode', 'local')
@@ -795,6 +799,20 @@ def on_browser_frame(data):
 @socketio.on('alert_responded')
 def on_alert_responded(data):
     alert_system.mark_responded(data.get('alert_id'))
+
+
+@socketio.on('location_update')
+def on_location_update(data):
+    if 'user_id' not in session or not isinstance(data, dict):
+        return
+    try:
+        latitude = float(data.get('latitude'))
+        longitude = float(data.get('longitude'))
+        if not (-90 <= latitude <= 90 and -180 <= longitude <= 180):
+            return
+        alert_system.update_location(latitude, longitude, data.get('accuracy'))
+    except (TypeError, ValueError):
+        return
 
 if __name__ == '__main__':
     init_db()

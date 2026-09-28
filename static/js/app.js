@@ -63,6 +63,7 @@ let browserCaptureStreams = [];
 let _cameraDeviceIds = [];   // index → deviceId, for preview only
 let browserFrameCount = 0;
 let browserFrameWindowStart = 0;
+let locationWatchId = null;
 
 const SPEED_MAX = 120;
 const ARC_TOTAL = 220;
@@ -215,6 +216,7 @@ async function startMonitoring() {
     }
     if (data.status === 'started' || data.status === 'already_running') {
       setMonitoringUI(true);
+      startLocationSharing();
       setCameraNote(`▶ Monitoring from browser cameras — Interior: cam ${safeInterior} | Exterior: cam ${safeExterior}`, 'ok');
       startBrowserCameraCapture();
     }
@@ -222,6 +224,25 @@ async function startMonitoring() {
     console.error('Start error:', e);
     setCameraNote('Failed to start. Check server connection.', 'warn');
   }
+}
+
+function startLocationSharing() {
+  if (!navigator.geolocation || locationWatchId !== null) return;
+  locationWatchId = navigator.geolocation.watchPosition(position => {
+    socket.emit('location_update', {
+      latitude: position.coords.latitude,
+      longitude: position.coords.longitude,
+      accuracy: position.coords.accuracy
+    });
+  }, error => {
+    console.warn('Location unavailable:', error.message);
+  }, { enableHighAccuracy: true, maximumAge: 10000, timeout: 10000 });
+}
+
+function stopLocationSharing() {
+  if (locationWatchId === null || !navigator.geolocation) return;
+  navigator.geolocation.clearWatch(locationWatchId);
+  locationWatchId = null;
 }
 
 function getSelectedCameraConstraints(kind) {
@@ -346,6 +367,7 @@ function updateBrowserCaptureFps() {
 
 async function stopMonitoring() {
   stopBrowserCapture();
+  stopLocationSharing();
   try {
     await fetch('/api/monitoring/stop', { method: 'POST' });
     setMonitoringUI(false);
@@ -478,21 +500,43 @@ socket.on('status_update', data => {
   if (!exteriorValid) resetExteriorState();
 });
 
-socket.on('alert', d => addAlert(d));
+socket.on('alert', d => {
+  addAlert(d);
+  if (d.severity === 'HIGH' || d.severity === 'CRITICAL') {
+    const delay = Number.isFinite(d.escalation_seconds) ? d.escalation_seconds : 20;
+    showEmergencyAlert(d, `Emergency contacts will be notified in ${delay} seconds unless acknowledged.`);
+  }
+});
 socket.on('emergency_escalation', d => {
-  lastEmergencyAlertId = d.alert_id;
-  const source = d.source === 'EXTERIOR' ? 'EXTERIOR' : 'INTERIOR';
+  const smsGatewayStatus = document.getElementById('smsGatewayStatus');
+  if (smsGatewayStatus) {
+    const smsState = d.sms_status || (d.sms_sent ? 'accepted' : 'failed');
+    const smsMessages = {
+      accepted: 'SMSGate accepted the SMS request. Phone delivery is not confirmed.',
+      no_contacts: 'No emergency contacts are saved for this account.',
+      failed: 'SMSGate did not accept the SMS request. Check the server log.'
+    };
+    smsGatewayStatus.textContent = smsMessages[smsState] || smsMessages.failed;
+  }
+  showEmergencyAlert(d, smsGatewayStatus ? smsGatewayStatus.textContent : d.message);
+  playAlertBeep('critical');
+});
+
+function showEmergencyAlert(data, statusMessage) {
+  lastEmergencyAlertId = data.alert_id;
+  const source = data.source === 'EXTERIOR' ? 'EXTERIOR' : 'INTERIOR';
   const interiorBox = document.getElementById('interiorEmergencyBox');
   const exteriorBox = document.getElementById('exteriorEmergencyBox');
   const interiorMsg = document.getElementById('interiorEmergencyMsg');
   const exteriorMsg = document.getElementById('exteriorEmergencyMsg');
   interiorBox.classList.toggle('active', source === 'INTERIOR');
   exteriorBox.classList.toggle('active', source === 'EXTERIOR');
-  interiorMsg.textContent = source === 'INTERIOR' ? d.message : 'No interior emergency';
-  exteriorMsg.textContent = source === 'EXTERIOR' ? d.message : 'No exterior emergency';
+  interiorMsg.textContent = source === 'INTERIOR' ? data.message : 'No interior emergency';
+  exteriorMsg.textContent = source === 'EXTERIOR' ? data.message : 'No exterior emergency';
+  const smsGatewayStatus = document.getElementById('smsGatewayStatus');
+  if (smsGatewayStatus && statusMessage) smsGatewayStatus.textContent = statusMessage;
   emergencyModal.style.display = 'flex';
-  playAlertBeep('critical');
-});
+}
 
 // ── UI ────────────────────────────────────────────────────────────
 function updateIndicator(key, active, critical) {
@@ -526,6 +570,7 @@ function acknowledgeAlert(alertId, btn) {
   socket.emit('alert_responded', { alert_id: alertId });
   btn.closest('.alert-item').style.opacity = '0.5';
   btn.textContent = '✓ OK'; btn.disabled = true;
+  if (lastEmergencyAlertId === alertId) emergencyModal.style.display = 'none';
 }
 
 function acknowledgeEmergency() {

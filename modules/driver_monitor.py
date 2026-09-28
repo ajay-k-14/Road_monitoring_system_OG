@@ -20,19 +20,29 @@ from collections import deque
 
 mp = None
 mp_solutions = None
+mp_python = None
+mp_vision = None
 try:
     import mediapipe as mp
     try:
         mp_solutions = mp.solutions
     except AttributeError:
-        import mediapipe.solutions as mp_solutions
-    MEDIAPIPE_OK = True
+        try:
+            import mediapipe.solutions as mp_solutions
+        except ImportError:
+            mp_solutions = None
+    try:
+        from mediapipe.tasks import python as mp_python
+        from mediapipe.tasks.python import vision as mp_vision
+    except ImportError:
+        pass
 except ImportError:
-    MEDIAPIPE_OK = False
-    print("[DriverMonitor] MediaPipe legacy Solutions API unavailable — driver detection disabled")
-except Exception as exc:
-    MEDIAPIPE_OK = False
-    print(f"[DriverMonitor] MediaPipe initialization failed ({exc}) — driver detection disabled")
+    pass
+
+MEDIAPIPE_OK = mp_solutions is not None
+MEDIAPIPE_TASKS_OK = mp_python is not None and mp_vision is not None
+if not MEDIAPIPE_OK and not MEDIAPIPE_TASKS_OK:
+    print("[DriverMonitor] MediaPipe face APIs unavailable — using basic face detection")
 
 from config import Config
 
@@ -77,10 +87,20 @@ class DriverMonitor:
         self._phone_detector    = yolo_model
         self._phone_frame_count = 0
         self._last_phone_objects = []
+        try:
+            cascade_path = cv2.data.haarcascades + 'haarcascade_frontalface_default.xml'
+            self._face_cascade = cv2.CascadeClassifier(cascade_path)
+            if self._face_cascade.empty():
+                self._face_cascade = None
+        except (AttributeError, cv2.error):
+            self._face_cascade = None
 
         # State memory (for UI)
         self._last_results = {}
 
+        self._face_mesh = None
+        self._face_landmarker = None
+        self._hands = None
         if MEDIAPIPE_OK:
             mp_face = mp_solutions.face_mesh
             mp_hands = mp_solutions.hands
@@ -95,9 +115,22 @@ class DriverMonitor:
                 min_detection_confidence=0.5,
                 min_tracking_confidence=0.5,
             )
-        else:
-            self._face_mesh = None
-            self._hands     = None
+        elif MEDIAPIPE_TASKS_OK:
+            try:
+                options = mp_vision.FaceLandmarkerOptions(
+                    base_options=mp_python.BaseOptions(
+                        model_asset_path=self.cfg.FACE_LANDMARKER_MODEL_PATH
+                    ),
+                    running_mode=mp_vision.RunningMode.IMAGE,
+                    num_faces=1,
+                    min_face_detection_confidence=0.4,
+                    min_face_presence_confidence=0.4,
+                    min_tracking_confidence=0.4,
+                )
+                self._face_landmarker = mp_vision.FaceLandmarker.create_from_options(options)
+                print(f"[DriverMonitor] FaceLandmarker loaded: {self.cfg.FACE_LANDMARKER_MODEL_PATH}")
+            except Exception as exc:
+                print(f"[DriverMonitor] FaceLandmarker unavailable: {exc}")
 
         if self._phone_detector is None and YOLO_OK:
             try:
@@ -130,13 +163,26 @@ class DriverMonitor:
             'head_pitch':   None,
             'head_roll':    None,
             'face_detected': False,
+            'face_analysis_ready': False,
+            'face_box':     None,
+            'driver_monitoring_available': bool(self._face_mesh or self._face_landmarker),
             'monitoring_valid': bool(input_valid),
         }
 
-        if not input_valid or not MEDIAPIPE_OK:
+        if not input_valid:
             self._reset_temporal_state()
             self._last_phone_objects = []
             results['monitoring_valid'] = False
+            return results
+
+        if self._face_mesh is None and self._face_landmarker is None:
+            self._reset_temporal_state()
+            self._last_phone_objects = []
+            face_box = self._detect_face_fallback(frame)
+            results['face_box'] = face_box
+            results['face_detected'] = face_box is not None
+            results['monitoring_valid'] = False
+            self._last_results = results
             return results
 
         self._phone_frame_count += 1
@@ -146,10 +192,20 @@ class DriverMonitor:
         results['phone_detected'] = bool(results['phone_objects'])
 
         # ── Face Mesh ──────────────────────────────────────
-        face_out = self._face_mesh.process(rgb)
+        if self._face_mesh is not None:
+            face_out = self._face_mesh.process(rgb)
+            face_landmarks = (
+                face_out.multi_face_landmarks[0].landmark
+                if face_out.multi_face_landmarks else None
+            )
+        else:
+            image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb)
+            face_out = self._face_landmarker.detect(image)
+            face_landmarks = face_out.face_landmarks[0] if face_out.face_landmarks else None
+
         face_box = None
-        if face_out.multi_face_landmarks:
-            lm = face_out.multi_face_landmarks[0].landmark
+        if face_landmarks:
+            lm = face_landmarks
             results['face_detected'] = True
 
             coords = np.array([[p.x * w, p.y * h] for p in lm])
@@ -157,16 +213,17 @@ class DriverMonitor:
                 int(coords[:, 0].min()), int(coords[:, 1].min()),
                 int(coords[:, 0].max()), int(coords[:, 1].max())
             )
+            results['face_box'] = face_box
             face_width = coords[:, 0].max() - coords[:, 0].min()
             if face_width < w * self.cfg.MIN_FACE_WIDTH_RATIO:
                 self._reset_temporal_state()
-                results['face_detected'] = False
                 self._fps_counter.append(time.time() - t0)
                 if len(self._fps_counter) > 1:
                     avg = sum(self._fps_counter) / len(self._fps_counter)
                     self.fps = round(1.0 / avg, 1) if avg > 0 else 0
                 self._last_results = results
                 return results
+            results['face_analysis_ready'] = True
 
             # EAR
             ear = self._compute_ear(coords)
@@ -217,11 +274,11 @@ class DriverMonitor:
             self._reset_temporal_state()
 
         # ── Hand detection — phone usage heuristic ─────────
-        hand_out = self._hands.process(rgb)
-        if hand_out.multi_hand_landmarks and face_out.multi_face_landmarks:
+        hand_out = self._hands.process(rgb) if self._hands is not None else None
+        if hand_out and hand_out.multi_hand_landmarks and face_landmarks:
             hand_near_face = self._detect_phone_usage(
                 hand_out.multi_hand_landmarks,
-                face_out.multi_face_landmarks[0].landmark,
+                face_landmarks,
                 w, h
             )
             phone_near_face = hand_near_face or self._phone_overlaps_face(
@@ -353,10 +410,23 @@ class DriverMonitor:
             cv2.putText(frame, txt, (6, y), cv2.FONT_HERSHEY_SIMPLEX, 0.7,
                         (255, 255, 255), 2)
 
-        # Face not detected indicator
-        if not results['face_detected']:
+        if results.get('face_box'):
+            x1, y1, x2, y2 = results['face_box']
+            cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 200, 80), 2)
+            if not results.get('driver_monitoring_available', True):
+                label = 'FACE DETECTED - BASIC'
+            elif not results.get('face_analysis_ready', False):
+                label = 'FACE DETECTED - MOVE CLOSER'
+            else:
+                label = 'FACE DETECTED'
+            cv2.putText(frame, label, (x1, max(45, y1 - 6)),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 200, 80), 1)
+        elif not results['face_detected']:
             cv2.putText(frame, 'NO FACE DETECTED', (w//2 - 100, h//2),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255), 2)
+        elif not results.get('driver_monitoring_available', True):
+            cv2.putText(frame, 'FACE LANDMARKS UNAVAILABLE', (w//2 - 160, h//2),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.65, (0, 165, 255), 2)
 
         return frame
 
@@ -367,6 +437,21 @@ class DriverMonitor:
     @staticmethod
     def _euclidean(p1, p2) -> float:
         return math.hypot(p1[0] - p2[0], p1[1] - p2[1])
+
+    def _detect_face_fallback(self, frame):
+        if self._face_cascade is None:
+            return None
+        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        gray = cv2.equalizeHist(gray)
+        height, width = gray.shape
+        min_size = (max(24, int(width * 0.06)), max(24, int(height * 0.06)))
+        faces = self._face_cascade.detectMultiScale(
+            gray, scaleFactor=1.1, minNeighbors=5, minSize=min_size
+        )
+        if len(faces) == 0:
+            return None
+        x, y, face_width, face_height = max(faces, key=lambda box: box[2] * box[3])
+        return int(x), int(y), int(x + face_width), int(y + face_height)
 
     def _compute_ear(self, coords: np.ndarray) -> float:
         def _ear(idx):

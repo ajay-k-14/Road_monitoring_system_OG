@@ -46,14 +46,18 @@ class Config:
     # Lane deviation: fraction of frame width
     LANE_DEVIATION_THRESHOLD = 0.15
     # Speed over which alert fires (km/h) — estimated
-    SPEED_ALERT_KMH          = 80
+    SPEED_ALERT_KMH          = 60
     # YOLO confidence threshold
     YOLO_CONFIDENCE          = 0.45
 
     # ── Alert System ─────────────────────────────────────
     # Shorter escalation keeps the dashboard responsive when a risky condition persists.
-    ALERT_ESCALATION_SECONDS = 4
+    ALERT_ESCALATION_SECONDS = 20
 
     # ── Model Paths ──────────────────────────────────────
     YOLO_MODEL_PATH = os.environ.get('YOLO_MODEL_PATH', 'yolov8n.pt')
+    FACE_LANDMARKER_MODEL_PATH = os.environ.get(
+        'FACE_LANDMARKER_MODEL_PATH',
+        os.path.join(os.path.dirname(__file__), 'face_landmarker.task'),
+    )
 

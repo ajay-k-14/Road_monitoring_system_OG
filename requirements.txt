@@ -9,7 +9,7 @@ sqlalchemy>=2.0.0
 werkzeug>=2.3.0          # password hashing
 
 # ─── Computer Vision & AI ─────────────────────────
-opencv-python>=4.10.0
+opencv-python>=4.10.0,<5
 numpy>=2.1.0
 mediapipe==0.10.35      # legacy face mesh + hand detection API; compatible with Python 3.11-3.13
 
@@ -18,4 +18,5 @@ ultralytics>=8.0.0       # YOLOv8 (includes PyTorch)
 
 # ─── Utilities ────────────────────────────────────
 python-dotenv>=1.0.0
+requests>=2.31.0
 

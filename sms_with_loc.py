@@ -1,51 +1,72 @@
-import json
+import os
 import requests
+from dotenv import load_dotenv
+
+load_dotenv()
 
 
-def get_windows_ip_location():
-    """Fetches approximate location using IP address on Windows."""
-    try:
-        res = requests.get("https://ipinfo.io/json", timeout=5).json()
-        loc = res.get("loc")  # returns "lat,lon"
-        if loc:
-            return f"https://maps.google.com/?q={loc}"
-    except Exception as err:
-        print(f"Location error: {err}")
-    return "Location unavailable"
+def send_sos(message=None, phone_numbers=None):
+    """Send an emergency SMS to the supplied recipients.
 
+    Credentials and the gateway URL are configured through environment variables.
+    Return True when SMSGate accepts the request; this does not confirm delivery.
+    """
+    username = os.environ.get("SMS_GATE_USERNAME")
+    password = os.environ.get("SMS_GATE_PASSWORD")
+    url = os.environ.get(
+        "SMS_GATE_URL", "https://api.sms-gate.app/3rdparty/v1/messages"
+    )
+    recipients = [phone for phone in (phone_numbers or []) if phone]
+    text = message or (
+        "EMERGENCY SOS\n\n"
+        "Accident / Hazard detected!\n"
+        "Please contact the driver immediately."
+    )
 
-def send_sos():
-    # --- PHONE GATEWAY CONFIGURATION ---
-    # Put the exact IP, port, and credentials shown inside your phone's app
-    GATEWAY_URL = "http://192.168.1.10:8080"  # Change to your phone's IP
-    USERNAME = "sms"  # As set in the app
-    PASSWORD = "cD0F3vaW"  # As set in the app
+    if not username or not password:
+        print("SMS not sent: SMS_GATE_USERNAME and SMS_GATE_PASSWORD are required")
+        return False
+    if not recipients:
+        print("SMS not sent: no emergency contact phone numbers are configured")
+        return False
 
-    TARGET_NUMBERS = ["+917356006016"]  # Target recipient
-    ALERT_TEXT = "EMERGENCY SOS: Accident / Hazard detected!"
-
-    print("Fetching location...")
-    maps_link = get_windows_ip_location()
-    final_message = f"{ALERT_TEXT}\nLocation:\n{maps_link}"
-
-    payload = {"message": final_message, "phoneNumbers": TARGET_NUMBERS}
+    payload = {
+        "textMessage": {
+            "text": text
+        },
+        "phoneNumbers": recipients
+    }
 
     try:
         response = requests.post(
-            f"{GATEWAY_URL}/message",
+            url,
             json=payload,
-            auth=(USERNAME, PASSWORD),
-            timeout=10,
+            auth=(username, password),
+            headers={
+                "Content-Type": "application/json"
+            },
+            timeout=20
         )
 
-        if response.status_code in (200,201,202):
-            print("SOS SMS dispatched successfully via phone gateway!")
+        print("Status:", response.status_code)
+        print("Response:", response.text)
+
+        if response.status_code == 202:
+            print("SMSGate accepted the SOS SMS request; delivery is not confirmed")
+            return True
+
+        elif response.ok:
+            print("SMSGate accepted the SOS SMS request; delivery is not confirmed")
+            return True
+
         else:
-            print(f"Failed. Status: {response.status_code}, {response.text}")
-    except requests.exceptions.ConnectionError:
-        print(
-            "Connection failed! Make sure your PC and Android phone are on the same Wi-Fi / Hotspot."
-        )
+            print("❌ Failed to send SOS SMS")
+            return False
+
+    except requests.exceptions.RequestException as e:
+
+        print("❌ Internet/API error:", e)
+        return False
 
 
 if __name__ == "__main__":

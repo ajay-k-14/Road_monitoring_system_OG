@@ -12,7 +12,7 @@
   <div class="settings-card">
     <h3>🆘 Emergency Contacts</h3>
     <p class="settings-desc">
-      If an un-acknowledged CRITICAL alert fires, an SMS will be sent to these contacts.
+      Unacknowledged HIGH or CRITICAL alerts are sent to these contacts.
     </p>
     <div id="contactsList" class="contacts-list"></div>
     <div class="add-contact-form">
@@ -40,8 +40,8 @@
       </div>
       <div class="threshold-item">
         <label>Speed Alert (km/h)</label>
-        <input type="range" min="40" max="140" step="5" value="80" id="speedThreshold"/>
-        <span class="thresh-val" id="speedThreshVal">80</span>
+        <input type="range" min="40" max="140" step="5" value="60" id="speedThreshold"/>
+        <span class="thresh-val" id="speedThreshVal">60</span>
       </div>
       <div class="threshold-item">
         <label>Head Yaw Limit (°)</label>
