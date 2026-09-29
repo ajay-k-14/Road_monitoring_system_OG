@@ -4,7 +4,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-
+ 
 def send_sos(message=None, phone_numbers=None):
     """Send an emergency SMS to the supplied recipients.
 
