@@ -57,6 +57,9 @@ const indicators = {
 };
 
 let lastEmergencyAlertId = null;
+let voiceRecognition = null;
+let voiceRecognitionEnabled = false;
+let voiceRecognitionRestartTimer = null;
 let previewStream = null;
 let browserCaptureTimers = [];
 let browserCaptureStreams = [];
@@ -191,6 +194,7 @@ async function startMonitoring() {
     return;
   }
 
+  if (!voiceRecognitionEnabled) toggleVoiceAcknowledgement();
   stopPreviewStream();
   stopBrowserCapture();
 
@@ -219,10 +223,18 @@ async function startMonitoring() {
       startLocationSharing();
       setCameraNote(`▶ Monitoring from browser cameras — Interior: cam ${safeInterior} | Exterior: cam ${safeExterior}`, 'ok');
       startBrowserCameraCapture();
+      if (voiceRecognitionEnabled) setVoiceAssistantStatus('Listening for “acknowledge alert” while monitoring.');
+    } else if (voiceRecognitionEnabled) {
+      stopVoiceRecognition();
+      setVoiceAssistantStatus('Monitoring did not start. Voice commands are off.');
     }
   } catch (e) {
     console.error('Start error:', e);
     setCameraNote('Failed to start. Check server connection.', 'warn');
+    if (voiceRecognitionEnabled) {
+      stopVoiceRecognition();
+      setVoiceAssistantStatus('Monitoring did not start. Voice commands are off.');
+    }
   }
 }
 
@@ -397,6 +409,8 @@ function updateBrowserCaptureFps() {
 async function stopMonitoring() {
   stopBrowserCapture();
   stopLocationSharing();
+  stopVoiceRecognition();
+  setVoiceAssistantStatus('Monitoring stopped. Voice commands are off.');
   try {
     await fetch('/api/monitoring/stop', { method: 'POST' });
     setMonitoringUI(false);
@@ -600,13 +614,108 @@ function acknowledgeAlert(alertId, btn) {
   socket.emit('alert_responded', { alert_id: alertId });
   btn.closest('.alert-item').style.opacity = '0.5';
   btn.textContent = '✓ OK'; btn.disabled = true;
-  if (lastEmergencyAlertId === alertId) emergencyModal.style.display = 'none';
+  if (lastEmergencyAlertId === alertId) {
+    emergencyModal.style.display = 'none';
+    lastEmergencyAlertId = null;
+    if (voiceRecognitionEnabled) setVoiceAssistantStatus('Alert acknowledged. Listening for the next alert.');
+  }
 }
 
 function acknowledgeEmergency() {
   stopAlertBeeps();
   if (lastEmergencyAlertId) socket.emit('alert_responded', { alert_id: lastEmergencyAlertId });
+  lastEmergencyAlertId = null;
   emergencyModal.style.display = 'none';
+  if (voiceRecognitionEnabled) {
+    setVoiceAssistantStatus('Alert acknowledged. Listening for the next alert.');
+  }
+}
+
+function toggleVoiceAcknowledgement() {
+  if (voiceRecognitionEnabled) {
+    stopVoiceRecognition();
+    setVoiceAssistantStatus('Voice commands are off.');
+    return;
+  }
+
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SpeechRecognition) {
+    setVoiceAssistantStatus('Voice recognition is not supported in this browser.');
+    return;
+  }
+
+  voiceRecognition = new SpeechRecognition();
+  voiceRecognition.continuous = true;
+  voiceRecognition.interimResults = false;
+  voiceRecognition.lang = 'en-US';
+  voiceRecognition.onresult = event => {
+    const result = event.results[event.results.length - 1];
+    const command = result[0].transcript.trim();
+    const transcript = document.getElementById('voiceAssistantTranscript');
+    if (transcript) transcript.textContent = `Heard: “${command}”`;
+    if (/\b(acknowledge|acknowledgment|acknowledgement|confirm|dismiss)\b/i.test(command)) {
+      if (!lastEmergencyAlertId || emergencyModal.style.display === 'none') {
+        setVoiceAssistantStatus('Listening for an emergency alert.');
+        return;
+      }
+      setVoiceAssistantStatus('Acknowledging the active emergency.');
+      acknowledgeEmergency();
+    } else if (!lastEmergencyAlertId || emergencyModal.style.display === 'none') {
+      setVoiceAssistantStatus('Listening for “acknowledge alert” during an emergency.');
+    } else {
+      setVoiceAssistantStatus('Say “acknowledge alert” to confirm this emergency.');
+    }
+  };
+  voiceRecognition.onerror = event => {
+    if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
+      stopVoiceRecognition();
+      setVoiceAssistantStatus('Microphone permission was denied.');
+    } else if (event.error !== 'no-speech' && event.error !== 'aborted') {
+      setVoiceAssistantStatus('Voice recognition encountered an error. Try again.');
+    }
+  };
+  voiceRecognition.onend = () => {
+    if (!voiceRecognitionEnabled) return;
+    clearTimeout(voiceRecognitionRestartTimer);
+    voiceRecognitionRestartTimer = setTimeout(() => {
+      if (!voiceRecognitionEnabled) return;
+      try { voiceRecognition.start(); } catch (error) {}
+    }, 250);
+  };
+
+  voiceRecognitionEnabled = true;
+  const button = document.getElementById('voiceAssistantButton');
+  if (button) {
+    button.textContent = 'Stop listening';
+    button.classList.add('listening');
+  }
+  setVoiceAssistantStatus('Listening. Say “acknowledge alert” to respond.');
+  try {
+    voiceRecognition.start();
+  } catch (error) {
+    stopVoiceRecognition();
+    setVoiceAssistantStatus('Could not start the microphone. Try again.');
+  }
+}
+
+function stopVoiceRecognition() {
+  voiceRecognitionEnabled = false;
+  clearTimeout(voiceRecognitionRestartTimer);
+  if (voiceRecognition) {
+    voiceRecognition.onend = null;
+    try { voiceRecognition.stop(); } catch (error) {}
+    voiceRecognition = null;
+  }
+  const button = document.getElementById('voiceAssistantButton');
+  if (button) {
+    button.textContent = 'Enable microphone';
+    button.classList.remove('listening');
+  }
+}
+
+function setVoiceAssistantStatus(message) {
+  const status = document.getElementById('voiceAssistantStatus');
+  if (status) status.textContent = message;
 }
 
 function clearAlerts(listId) {

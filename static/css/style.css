@@ -507,6 +507,21 @@ html, body {
 .btn-acknowledge:hover {
   transform: translateY(-2px); box-shadow: 0 6px 20px rgba(0,230,118,0.4);
 }
+.voice-assistant {
+  display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  margin-top: 18px; padding: 12px 14px; text-align: left;
+  border: 1px solid var(--border2); border-radius: var(--radius); background: var(--bg2);
+}
+.voice-assistant-copy { display: grid; gap: 4px; min-width: 0; }
+.voice-assistant-copy strong { color: var(--accent); font-family: var(--font-head); font-size: 12px; }
+.voice-assistant-copy span { color: var(--text-dim); font-size: 13px; overflow-wrap: anywhere; }
+.voice-assistant-copy .voice-transcript { color: var(--text); }
+.btn-voice {
+  flex: 0 0 auto; padding: 9px 12px; border: 1px solid var(--accent);
+  border-radius: var(--radius); background: transparent; color: var(--accent); cursor: pointer;
+}
+.btn-voice.listening { border-color: var(--success); color: var(--success); }
+.btn-voice:disabled { opacity: 0.55; cursor: not-allowed; }
 @media (max-width: 980px) {
   .topnav {
     height: auto;
@@ -514,6 +529,9 @@ html, body {
     flex-wrap: wrap;
     gap: 12px;
   }
+
+  .voice-assistant { align-items: stretch; flex-direction: column; }
+  .btn-voice { align-self: flex-start; }
 
   .nav-brand {
     margin-right: 0;
