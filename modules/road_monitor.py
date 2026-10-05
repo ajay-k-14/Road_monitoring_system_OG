@@ -139,7 +139,12 @@ class RoadMonitor:
 
         if not results.get('road_detected', False):
             h, w = frame.shape[:2]
-            cv2.putText(frame, 'NO ROAD DETECTED', (w // 2 - 205, h // 2),
+            text = 'NO ROAD DETECTED'
+            text_size = cv2.getTextSize(
+                text, cv2.FONT_HERSHEY_SIMPLEX, 0.8, 2
+            )[0]
+            cv2.putText(frame, text,
+                        ((w - text_size[0]) // 2, h // 2),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255), 2)
             return frame
 
@@ -171,14 +176,20 @@ class RoadMonitor:
         # ── HUD bar ───────────────────────────────────────
         cv2.rectangle(frame, (0, 0), (w, 32), (20, 20, 20), -1)
         speed_color = (0, 60, 220) if results['over_speed'] else (180, 255, 180)
-        cv2.putText(frame, f"Speed: ~{results['speed_kmh']:.0f} km/h",
-                    (8, 22), cv2.FONT_HERSHEY_SIMPLEX, 0.55, speed_color, 1)
+        speed_text = f"Speed: ~{results['speed_kmh']:.0f} km/h"
+        cv2.putText(frame, speed_text, (8, 22),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.55, speed_color, 1)
 
         n_obj = (len(results['vehicles_detected']) +
                  len(results['pedestrians_detected']) +
                  len(results['obstacles_detected']))
-        cv2.putText(frame, f"Objects: {n_obj}",
-                    (240, 22), cv2.FONT_HERSHEY_SIMPLEX, 0.55, (220, 220, 255), 1)
+        objects_text = f"Objects: {n_obj}"
+        objects_width = cv2.getTextSize(
+            objects_text, cv2.FONT_HERSHEY_SIMPLEX, 0.55, 1
+        )[0][0]
+        cv2.putText(frame, objects_text,
+                    (max(8, w - objects_width - 8), 22),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.55, (220, 220, 255), 1)
 
         # ── Alert banners ─────────────────────────────────
         banners = []
@@ -191,7 +202,11 @@ class RoadMonitor:
 
         for i, (txt, color) in enumerate(banners):
             y = 65 + i * 35
-            cv2.rectangle(frame, (0, y - 24), (len(txt) * 13 + 10, y + 5), color, -1)
+            text_width = cv2.getTextSize(
+                txt, cv2.FONT_HERSHEY_SIMPLEX, 0.65, 2
+            )[0][0]
+            banner_width = min(w, text_width + 12)
+            cv2.rectangle(frame, (0, y - 24), (banner_width, y + 5), color, -1)
             cv2.putText(frame, txt, (6, y), cv2.FONT_HERSHEY_SIMPLEX, 0.65,
                         (255, 255, 255), 2)
 

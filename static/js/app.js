@@ -293,27 +293,36 @@ function startBrowserCameraCapture() {
       const interiorIndex = parseInt(interiorSrcInput.value, 10);
       const exteriorIndex = parseInt(exteriorSrcInput.value, 10);
       const sameCamera = interiorIndex === exteriorIndex;
-      const interiorStream = await openSelectedCamera('interior');
-      browserCaptureStreams = [interiorStream];
-      let exteriorStream = interiorStream;
+      let interiorStream = null;
+      let exteriorStream = null;
+      const cameraErrors = [];
+      try {
+        interiorStream = await openSelectedCamera('interior');
+      } catch (err) {
+        err.cameraKind = 'interior';
+        cameraErrors.push(err);
+        console.warn('Interior camera failed:', err);
+      }
       if (!sameCamera) {
         try {
           exteriorStream = await openSelectedCamera('exterior');
         } catch (exteriorError) {
           exteriorError.cameraKind = 'exterior';
-          throw exteriorError;
+          cameraErrors.push(exteriorError);
+          console.warn('Exterior camera failed:', exteriorError);
         }
+      } else {
+        exteriorStream = interiorStream;
       }
-      if (!sameCamera) browserCaptureStreams.push(exteriorStream);
+      browserCaptureStreams = [...new Set([interiorStream, exteriorStream].filter(Boolean))];
+      if (!interiorStream && !exteriorStream) {
+        throw cameraErrors[0] || new Error('No camera stream is available');
+      }
 
       const interiorVideo = document.createElement('video');
       const exteriorVideo = document.createElement('video');
-      interiorVideo.srcObject = interiorStream;
-      exteriorVideo.srcObject = exteriorStream;
       interiorVideo.muted = true;
       exteriorVideo.muted = true;
-      await interiorVideo.play();
-      await exteriorVideo.play();
 
       const sendFrame = (video, side) => {
         if (video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) return;
@@ -332,16 +341,36 @@ function startBrowserCameraCapture() {
         browserFrameCount += 1;
       };
 
+      const startSideCapture = async (video, side, stream) => {
+        if (!stream) return false;
+        video.srcObject = stream;
+        try {
+          await video.play();
+          browserCaptureTimers.push(setInterval(() => sendFrame(video, side), 500));
+          return true;
+        } catch (err) {
+          err.cameraKind = side;
+          cameraErrors.push(err);
+          console.warn(`${side} camera playback failed:`, err);
+          return false;
+        }
+      };
+
+      const interiorStarted = await startSideCapture(interiorVideo, 'interior', interiorStream);
+      const exteriorStarted = await startSideCapture(exteriorVideo, 'exterior', exteriorStream);
+      if (!interiorStarted && !exteriorStarted) {
+        throw cameraErrors[0] || new Error('Camera streams could not start');
+      }
+
       browserFrameWindowStart = performance.now();
-      browserCaptureTimers.push(setInterval(() => sendFrame(interiorVideo, 'interior'), 500));
-      const exteriorTimer = setTimeout(() => {
-        sendFrame(exteriorVideo, 'exterior');
-        browserCaptureTimers.push(setInterval(() => sendFrame(exteriorVideo, 'exterior'), 500));
-      }, 175);
-      browserCaptureTimers.push(exteriorTimer);
-      setCameraNote(sameCamera
-        ? 'Camera detected. One camera is feeding both monitoring views.'
-        : 'Both cameras detected and streaming.', 'ok');
+      if (interiorStarted && exteriorStarted && sameCamera) {
+        setCameraNote('One camera is feeding both monitoring views.', 'ok');
+      } else if (interiorStarted && exteriorStarted) {
+        setCameraNote('Both cameras detected and streaming.', 'ok');
+      } else {
+        const unavailable = interiorStarted ? 'Exterior' : 'Interior';
+        setCameraNote(`${unavailable} camera unavailable; the other feed is streaming.`, 'warn');
+      }
       updateBrowserCaptureFps();
     } catch (err) {
       console.error('Browser camera capture failed:', err);
@@ -567,6 +596,7 @@ function addAlert(data) {
 }
 
 function acknowledgeAlert(alertId, btn) {
+  stopAlertBeeps();
   socket.emit('alert_responded', { alert_id: alertId });
   btn.closest('.alert-item').style.opacity = '0.5';
   btn.textContent = '✓ OK'; btn.disabled = true;
@@ -574,6 +604,7 @@ function acknowledgeAlert(alertId, btn) {
 }
 
 function acknowledgeEmergency() {
+  stopAlertBeeps();
   if (lastEmergencyAlertId) socket.emit('alert_responded', { alert_id: lastEmergencyAlertId });
   emergencyModal.style.display = 'none';
 }
@@ -585,18 +616,29 @@ function clearAlerts(listId) {
 }
 
 let audioCtx = null;
+const activeAlertSounds = new Set();
+
 function playAlertBeep(severity) {
   try {
     if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     const osc = audioCtx.createOscillator(), gain = audioCtx.createGain();
+    activeAlertSounds.add(osc);
+    osc.addEventListener('ended', () => activeAlertSounds.delete(osc), { once: true });
     osc.connect(gain); gain.connect(audioCtx.destination);
     const freqMap = { CRITICAL:880, HIGH:660, MEDIUM:440, LOW:330, critical:880 };
     osc.frequency.value = freqMap[severity] || 440;
     osc.type = 'square';
     gain.gain.setValueAtTime(0.08, audioCtx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 10.0);
-    osc.start(audioCtx.currentTime); osc.stop(audioCtx.currentTime + 10.0);
+    gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 30.0);
+    osc.start(audioCtx.currentTime); osc.stop(audioCtx.currentTime + 30.0);
   } catch (e) {}
+}
+
+function stopAlertBeeps() {
+  for (const osc of activeAlertSounds) {
+    try { osc.stop(); } catch (e) {}
+  }
+  activeAlertSounds.clear();
 }
 
 async function showServerLogs() {

@@ -374,15 +374,34 @@ class DriverMonitor:
         # Status bar background
         cv2.rectangle(frame, (0, 0), (w, 32), (20, 20, 20), -1)
 
-        # EAR / MAR
+        # Keep diagnostics within the frame even when the camera width changes.
+        margin = 8
+        gap = 16
+        font_scale = 0.5
+        font = cv2.FONT_HERSHEY_SIMPLEX
+        baseline_y = 22
+
+        # EAR / head pose / FPS
         ear_txt = f"EAR:{results['ear']:.2f}" if results['ear'] is not None else "EAR:--"
-        cv2.putText(frame, ear_txt, (8, 22), cv2.FONT_HERSHEY_SIMPLEX, 0.55,
-                    (255, 255, 255), 1)
-        if results['head_yaw'] is not None:
-            cv2.putText(frame, f"Yaw:{results['head_yaw']:+.0f}°", (130, 22),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.55, (200, 220, 255), 1)
-        cv2.putText(frame, f"FPS:{self.fps}", (w - 75, 22),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.55, (180, 255, 180), 1)
+        fps_txt = f"FPS:{self.fps}"
+        yaw_txt = (
+            f"Yaw:{results['head_yaw']:+.0f} deg"
+            if results['head_yaw'] is not None else None
+        )
+        ear_width = cv2.getTextSize(ear_txt, font, font_scale, 1)[0][0]
+        fps_width = cv2.getTextSize(fps_txt, font, font_scale, 1)[0][0]
+        fps_x = max(margin, w - fps_width - margin)
+        cv2.putText(frame, ear_txt, (margin, baseline_y), font, font_scale,
+                    (255, 255, 255), 1, cv2.LINE_AA)
+        if yaw_txt:
+            yaw_width = cv2.getTextSize(yaw_txt, font, font_scale, 1)[0][0]
+            yaw_x = max(margin + ear_width + gap, (w - yaw_width) // 2)
+            yaw_x = min(yaw_x, fps_x - yaw_width - gap)
+            if yaw_x >= margin + ear_width + gap:
+                cv2.putText(frame, yaw_txt, (yaw_x, baseline_y), font, font_scale,
+                            (200, 220, 255), 1, cv2.LINE_AA)
+        cv2.putText(frame, fps_txt, (fps_x, baseline_y), font, font_scale,
+                    (180, 255, 180), 1, cv2.LINE_AA)
 
         # Alert overlays
         for phone in results.get('phone_objects', []):
