@@ -1,6 +1,12 @@
 {% extends "base.html" %}
 {% block title %}Dashboard — DRMS{% endblock %}
 
+{% block extra_head %}
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+      integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/navigation.css', v='1') }}"/>
+{% endblock %}
+
 {% block content %}
 <div class="dashboard">
 
@@ -40,6 +46,8 @@
       <button id="btnStart" class="btn btn-start" onclick="startMonitoring()">▶ START</button>
       <button id="btnStop"  class="btn btn-stop"  onclick="stopMonitoring()" disabled>■ STOP</button>
       <button class="btn btn-logs" onclick="showServerLogs()">Logs</button>
+      <button id="mapOpenButton" class="btn btn-map" type="button"
+              aria-controls="navigationPanel" aria-expanded="false">MAP</button>
     </div>
     <div class="fps-display">
       <span class="label">FPS</span>
@@ -146,6 +154,87 @@
 
 </div>
 
+<!-- Independent navigation drawer -->
+<div id="navigationShell" class="navigation-shell" hidden>
+  <button id="navigationBackdrop" class="navigation-backdrop" type="button"
+          aria-label="Close navigation panel"></button>
+  <aside id="navigationPanel" class="navigation-panel" role="dialog"
+         aria-modal="true" aria-labelledby="navigationTitle" tabindex="-1">
+    <header class="navigation-header">
+      <div>
+        <span class="navigation-eyebrow">ROUTE PLANNER</span>
+        <h2 id="navigationTitle">NAVIGATION</h2>
+      </div>
+      <button id="navigationCloseButton" class="navigation-close" type="button"
+              aria-label="Close navigation panel">×</button>
+    </header>
+
+    <div class="navigation-content">
+      <div class="navigation-fields">
+        <div class="navigation-field">
+          <label for="navigationFrom">FROM</label>
+          <div class="navigation-input-wrap">
+            <span class="navigation-point navigation-point-start" aria-hidden="true"></span>
+            <input id="navigationFrom" type="search" autocomplete="off"
+                   placeholder="Search starting location" aria-autocomplete="list"
+                   aria-controls="navigationFromSuggestions" aria-expanded="false"/>
+          </div>
+          <ul id="navigationFromSuggestions" class="navigation-suggestions"
+              role="listbox" aria-label="Starting location suggestions" hidden></ul>
+        </div>
+
+        <button id="navigationSwapButton" class="navigation-swap" type="button"
+                aria-label="Swap starting location and destination" title="Swap locations">⇅</button>
+
+        <div class="navigation-field">
+          <label for="navigationTo">TO</label>
+          <div class="navigation-input-wrap">
+            <span class="navigation-point navigation-point-end" aria-hidden="true"></span>
+            <input id="navigationTo" type="search" autocomplete="off"
+                   placeholder="Search destination" aria-autocomplete="list"
+                   aria-controls="navigationToSuggestions" aria-expanded="false"/>
+          </div>
+          <ul id="navigationToSuggestions" class="navigation-suggestions"
+              role="listbox" aria-label="Destination suggestions" hidden></ul>
+        </div>
+      </div>
+
+      <div class="navigation-actions">
+        <button id="navigationShowRoute" class="navigation-action-primary" type="button">
+          SHOW ROUTE
+        </button>
+        <button id="navigationClearRoute" class="navigation-action-secondary" type="button">
+          CLEAR ROUTE
+        </button>
+      </div>
+
+      <p id="navigationStatus" class="navigation-status" role="status" aria-live="polite">
+        Search and select both locations to plan a route.
+      </p>
+
+      <div id="navigationMap" class="navigation-map"
+           role="region" aria-label="Interactive route map"></div>
+
+      <section id="navigationRouteSummary" class="navigation-route-summary" aria-live="polite" hidden>
+        <div>
+          <span class="navigation-summary-label">DISTANCE</span>
+          <strong id="navigationDistance">—</strong>
+        </div>
+        <div>
+          <span class="navigation-summary-label">EST. DURATION</span>
+          <strong id="navigationDuration">—</strong>
+        </div>
+      </section>
+
+      <p class="navigation-attribution">
+        Map data © <a href="https://www.openstreetmap.org/copyright"
+        target="_blank" rel="noopener noreferrer">OpenStreetMap contributors</a>.
+        Routes via OSRM. Search via Nominatim.
+      </p>
+    </div>
+  </aside>
+</div>
+
 <!-- Emergency Modal -->
 <div class="emergency-modal" id="emergencyModal" style="display:none">
   <div class="modal-inner">
@@ -177,4 +266,7 @@
 {% block scripts %}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.5/socket.io.min.js"></script>
 <script src="{{ url_for('static', filename='js/app.js', v='7') }}"></script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+        integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+<script src="{{ url_for('static', filename='js/navigation.js', v='1') }}"></script>
 {% endblock %}

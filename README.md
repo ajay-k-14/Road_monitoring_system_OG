@@ -25,8 +25,14 @@ driver_monitor_system/
 │   └── settings.html
 └── static/
     ├── css/style.css         # Dark industrial HUD theme
-    └── js/app.js             # WebSocket + real-time UI
+    ├── css/navigation.css    # Dashboard navigation drawer styles
+    ├── js/app.js             # WebSocket + real-time UI
+    └── js/navigation.js      # Leaflet map, location search + route planning
 ```
+
+The dashboard MAP drawer uses Leaflet with OpenStreetMap tiles, Nominatim
+location search, and OSRM driving routes. It is independent of the monitoring
+and alert flows, and route duration is an estimate without live traffic.
 
 ---
 
