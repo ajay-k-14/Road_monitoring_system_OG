@@ -186,7 +186,6 @@ Risk Detected → Audio beep + Visual overlay on dashboard
 Emergency SMS → All saved emergency contacts 
 ```
 
-<!-- Configure Twilio in `.env`: -->
 ```
 
 ## 📦 Dependencies Summary
@@ -198,7 +197,7 @@ Emergency SMS → All saved emergency contacts
 | MediaPipe | Face mesh (EAR, MAR, head pose) + Hands |
 | Ultralytics (YOLOv8) | Object detection (vehicles, pedestrians) |
 | SQLAlchemy | ORM for SQLite database |
-<!-- | Twilio (optional) | Emergency SMS | -->
+| SMSGate | Emergency SMS |
 
 ---
 
