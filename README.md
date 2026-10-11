@@ -69,6 +69,23 @@ terminates TLS itself, set `SSL_CERT_FILE` and `SSL_KEY_FILE` to the certificate
 and private-key paths before starting it. If a hosting provider terminates TLS,
 use its HTTPS URL and keep the app bound to `0.0.0.0`.
 
+### Voice alert acknowledgement
+
+On the dashboard, the browser's Web Speech API speaks each new safety alert and
+listens for **“DRMS”**, **“Acknowledge”**, **“I accept”**, or **“DRMS, I accept”**
+while that alert is active. Click **VOICE: ENABLE** in the dashboard to grant microphone
+permission; browsers require this explicit user action before allowing voice
+recognition. The permission check stops its temporary microphone stream
+immediately, and recognition listens only while an alert is active. The
+existing per-alert and emergency-modal acknowledgement buttons continue to
+work and cancel the same server-side escalation timer. Voice acknowledgement
+requires a browser that supports SpeechRecognition (commonly Chrome or Edge)
+and a secure context such as HTTPS or localhost. Browser speech recognition may
+use a browser-managed online service; voice input is not sent to this
+application by the assistant. If recognition is unavailable or permission is
+denied, spoken warnings, dashboard alerts, beep, acknowledgement buttons, and
+SMS escalation remain available.
+
 ### Emergency SMS configuration
 
 Add these environment variables before starting the app:

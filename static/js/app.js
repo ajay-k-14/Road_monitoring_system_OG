@@ -89,7 +89,7 @@ async function loadCameraDevices() {
     setCameraNote(
       cameras.length === 0
         ? '⚠ No cameras detected. Check connections.'
-        : `✓ ${cameras.length} camera(s) found. Select and Preview before starting.`,
+        : `✓ ${cameras.length} camera(s) found.`,
       cameras.length === 0 ? 'warn' : 'ok'
     );
   } catch (err) {
@@ -99,6 +99,10 @@ async function loadCameraDevices() {
 }
 
 function populateCameraSelects(cameras) {
+  const previousInteriorId =
+    _cameraDeviceIds[parseInt(interiorSrcInput.value, 10)] || '';
+  const previousExteriorId =
+    _cameraDeviceIds[parseInt(exteriorSrcInput.value, 10)] || '';
   _cameraDeviceIds = [];
 
   const buildOptions = () => {
@@ -131,8 +135,48 @@ function populateCameraSelects(cameras) {
   const opts = buildOptions();
   interiorSrcInput.innerHTML = opts;
   exteriorSrcInput.innerHTML = opts;
-  interiorSrcInput.value = '0';
-  exteriorSrcInput.value = cameras.length > 1 ? '1' : '0';
+
+  const findCameraIndex = deviceId =>
+    deviceId ? cameras.findIndex(camera => camera.deviceId === deviceId) : -1;
+  const previousInteriorIndex = findCameraIndex(previousInteriorId);
+  const previousExteriorIndex = findCameraIndex(previousExteriorId);
+  const cameraScore = (camera, kind) => {
+    const label = (camera.label || '').toLowerCase();
+    const builtIn = /built[\s-]?in|integrated|internal|facetime|laptop|webcam|user[\s-]?facing|front[\s-]?facing/.test(label);
+    const external = /usb|external|rear|back[\s-]?camera|road|vehicle|dash[\s-]?cam|smart[\s-]?connect|droidcam|iriun|epoccam|ivcam|phone|mobile/.test(label);
+    const virtual = /virtual|obs/.test(label) && !external;
+    if (kind === 'interior') {
+      return (builtIn ? 100 : 0) - (external ? 100 : 0) - (virtual ? 20 : 0);
+    }
+    return (external ? 100 : 0) - (builtIn ? 100 : 0) - (virtual ? 20 : 0);
+  };
+  const bestIndex = (kind, excludedIndex = -1) => {
+    let selectedIndex = -1;
+    let highestScore = Number.NEGATIVE_INFINITY;
+    cameras.forEach((camera, index) => {
+      if (index === excludedIndex) return;
+      const score = cameraScore(camera, kind);
+      if (score > highestScore) {
+        highestScore = score;
+        selectedIndex = index;
+      }
+    });
+    return selectedIndex;
+  };
+
+  const interiorIndex = previousInteriorIndex >= 0
+    ? previousInteriorIndex
+    : cameras.length ? Math.max(0, bestIndex('interior')) : 0;
+  const exteriorIndex = previousExteriorIndex >= 0 &&
+      previousExteriorIndex !== interiorIndex
+    ? previousExteriorIndex
+    : cameras.length > 1
+      ? Math.max(0, bestIndex('exterior', interiorIndex))
+      : cameras.length === 1 ? interiorIndex : 1;
+  interiorSrcInput.selectedIndex = interiorIndex;
+  exteriorSrcInput.selectedIndex = exteriorIndex;
+  interiorSrcInput.value = String(interiorIndex);
+  exteriorSrcInput.value = String(exteriorIndex);
 }
 
 function setCameraNote(msg, type) {
@@ -538,6 +582,7 @@ socket.on('alert', d => {
   }
 });
 socket.on('emergency_escalation', d => {
+  if (window.VoiceAssistant) window.VoiceAssistant.onEscalation(d);
   const smsGatewayStatus = document.getElementById('smsGatewayStatus');
   if (smsGatewayStatus) {
     const smsState = d.sms_status || (d.sms_sent ? 'accepted' : 'failed');
@@ -577,6 +622,8 @@ function updateIndicator(key, active, critical) {
 }
 
 function addAlert(data) {
+  const alertId = data.alert_id == null ? '' : String(data.alert_id);
+  if (!alertId || document.getElementById('alert-' + alertId)) return;
   const source = data.source === 'EXTERIOR' ? 'EXTERIOR' : 'INTERIOR';
   const alertList = source === 'EXTERIOR' ? exteriorAlertList : interiorAlertList;
   if (!alertList) return;
@@ -585,8 +632,7 @@ function addAlert(data) {
   const sevClass = 'sev-' + (data.severity || 'low').toLowerCase();
   const item     = document.createElement('div');
   item.className = 'alert-item';
-  item.id        = 'alert-' + data.alert_id;
-  const alertId = data.alert_id == null ? '' : String(data.alert_id);
+  item.id        = 'alert-' + alertId;
   if (alertId && !pendingAlertIds.includes(alertId)) {
     pendingAlertIds.push(alertId);
   }
@@ -597,6 +643,7 @@ function addAlert(data) {
     <button class="ack-btn" onclick="acknowledgeAlert('${data.alert_id}',this)">✓</button>`;
   alertList.insertBefore(item, alertList.firstChild);
   playAlertBeep(data.severity);
+  if (window.VoiceAssistant) window.VoiceAssistant.onAlert(data);
   while (alertList.children.length > 50) {
     const oldest = alertList.lastChild;
     if (oldest.classList.contains('alert-item')) {
@@ -607,14 +654,18 @@ function addAlert(data) {
   }
 }
 
-function acknowledgeAlert(alertId, btn) {
+function acknowledgeAlert(alertId, btnOrSource) {
   if (!alertId) return;
   alertId = String(alertId);
+  if (!pendingAlertIds.includes(alertId)) return;
+  const source = btnOrSource === 'voice' ? 'voice' : 'button';
   stopAlertBeeps();
-  socket.emit('alert_responded', { alert_id: alertId });
+  socket.emit('alert_responded', { alert_id: alertId, source });
   pendingAlertIds = pendingAlertIds.filter(id => id !== alertId);
+  if (window.VoiceAssistant) window.VoiceAssistant.onAcknowledged(alertId, source);
   const alertItem = document.getElementById('alert-' + alertId);
-  const ackButton = btn || (alertItem && alertItem.querySelector('.ack-btn'));
+  const ackButton = (btnOrSource instanceof HTMLElement ? btnOrSource : null) ||
+    (alertItem && alertItem.querySelector('.ack-btn'));
   if (alertItem) alertItem.style.opacity = '0.5';
   if (ackButton) {
     ackButton.textContent = '✓ OK';
@@ -624,7 +675,7 @@ function acknowledgeAlert(alertId, btn) {
 }
 
 function acknowledgeEmergency() {
-  if (lastEmergencyAlertId) acknowledgeAlert(lastEmergencyAlertId);
+  if (lastEmergencyAlertId) acknowledgeAlert(lastEmergencyAlertId, 'button');
   emergencyModal.style.display = 'none';
 }
 
@@ -634,6 +685,9 @@ function clearAlerts(listId) {
   const removedIds = Array.from(list.querySelectorAll('.alert-item'))
     .map(item => item.id.replace(/^alert-/, ''));
   pendingAlertIds = pendingAlertIds.filter(id => !removedIds.includes(id));
+  if (window.VoiceAssistant) {
+    removedIds.forEach(id => window.VoiceAssistant.onCancelled(id));
+  }
   list.innerHTML = `<div class="no-alerts">${listId === 'interiorAlertList' ? 'No driver warnings' : 'No road warnings'}</div>`;
 }
 
@@ -650,9 +704,9 @@ function playAlertBeep(severity) {
     const freqMap = { CRITICAL:880, HIGH:660, MEDIUM:440, LOW:330, critical:880 };
     osc.frequency.value = freqMap[severity] || 440;
     osc.type = 'square';
-    gain.gain.setValueAtTime(0.08, audioCtx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 30.0);
-    osc.start(audioCtx.currentTime); osc.stop(audioCtx.currentTime + 30.0);
+    gain.gain.setValueAtTime(0.025, audioCtx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 15.0);
+    osc.start(audioCtx.currentTime); osc.stop(audioCtx.currentTime + 15.0);
   } catch (e) {}
 }
 

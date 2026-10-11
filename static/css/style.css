@@ -206,6 +206,41 @@ html, body {
 .btn-stop:hover:not(:disabled) { background: var(--danger); color: white; }
 .btn:disabled { opacity: 0.35; cursor: not-allowed; }
 
+.voice-assistant-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 10px;
+  background: transparent;
+  border: 1px solid var(--border2);
+  border-radius: var(--radius);
+  color: var(--success);
+  cursor: pointer;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  white-space: nowrap;
+}
+.voice-assistant-status:focus-visible {
+  outline: 1px solid var(--accent);
+  outline-offset: 2px;
+}
+.voice-assistant-status::before {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  content: "";
+}
+.voice-assistant-status[data-state="listening"] { color: var(--accent); }
+.voice-assistant-status[data-state="acknowledged"] { color: var(--success); }
+.voice-assistant-status[data-state="unavailable"] { color: var(--warn); }
+.voice-assistant-status[aria-pressed="true"] {
+  border-color: var(--accent);
+  background: rgba(0,200,255,0.08);
+  color: var(--accent);
+}
+.voice-assistant-status:disabled { opacity: 0.6; cursor: wait; }
+
 .fps-display {
   display: flex; align-items: center; gap: 6px;
   font-family: var(--font-head); font-size: 13px;

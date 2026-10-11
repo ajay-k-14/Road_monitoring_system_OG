@@ -803,7 +803,18 @@ def on_browser_frame(data):
 
 @socketio.on('alert_responded')
 def on_alert_responded(data):
-    alert_system.mark_responded(data.get('alert_id'))
+    if 'user_id' not in session or not isinstance(data, dict):
+        return
+    alert_id = data.get('alert_id')
+    source = data.get('source', 'button')
+    if (
+        not isinstance(alert_id, str)
+        or not alert_id
+        or len(alert_id) > 100
+        or source not in ('voice', 'button')
+    ):
+        return
+    alert_system.mark_responded(alert_id, session['user_id'], source)
 
 
 @socketio.on('location_update')

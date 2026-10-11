@@ -45,6 +45,11 @@
     <div class="control-buttons">
       <button id="btnStart" class="btn btn-start" onclick="startMonitoring()">▶ START</button>
       <button id="btnStop"  class="btn btn-stop"  onclick="stopMonitoring()" disabled>■ STOP</button>
+      <button id="voiceAssistantStatus" class="voice-assistant-status" type="button"
+              data-state="ready" aria-pressed="false"
+              title="Click to turn on the voice assistant and grant microphone permission.">
+        VOICE ASSISTANT: OFF
+      </button>
       <button class="btn btn-logs" onclick="showServerLogs()">Logs</button>
       <button id="mapOpenButton" class="btn btn-map" type="button"
               aria-controls="navigationPanel" aria-expanded="false">MAP</button>
@@ -265,7 +270,8 @@
 
 {% block scripts %}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.5/socket.io.min.js"></script>
-<script src="{{ url_for('static', filename='js/app.js', v='13') }}"></script>
+<script src="{{ url_for('static', filename='js/app.js', v='17') }}"></script>
+<script src="{{ url_for('static', filename='js/voice-assistant.js', v='9') }}"></script>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
         integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 <script src="{{ url_for('static', filename='js/navigation.js', v='1') }}"></script>
