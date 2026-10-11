@@ -119,7 +119,7 @@ prompt. A desktop may provide coarse or no GPS; a phone or GPS-enabled device
 usually provides better fixes. Use **STOP NAVIGATION** to release tracking.
 
 ### Emergency SMS configuration
-
+ 
 Add these environment variables before starting the app:
 
 ```powershell
