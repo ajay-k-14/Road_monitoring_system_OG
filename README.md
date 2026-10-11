@@ -128,7 +128,7 @@ $env:SMS_GATE_PASSWORD = "your-smsgate-password"
 ```
 
 When a `HIGH` or `CRITICAL` alert is not acknowledged within
-`ALERT_ESCALATION_SECONDS` (4 seconds by default), the app sends one SMS to
+`ALERT_ESCALATION_SECONDS` (20 seconds ), the app sends one SMS to
 every emergency contact saved in Dashboard > Settings. The message includes a
 Google Maps link when browser location permission is available; otherwise it
 states that the location is unavailable. Camera and location access require a
