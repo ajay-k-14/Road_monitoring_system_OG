@@ -57,6 +57,7 @@ const indicators = {
 };
 
 let lastEmergencyAlertId = null;
+let pendingAlertIds = [];
 let previewStream = null;
 let browserCaptureTimers = [];
 let browserCaptureStreams = [];
@@ -585,6 +586,10 @@ function addAlert(data) {
   const item     = document.createElement('div');
   item.className = 'alert-item';
   item.id        = 'alert-' + data.alert_id;
+  const alertId = data.alert_id == null ? '' : String(data.alert_id);
+  if (alertId && !pendingAlertIds.includes(alertId)) {
+    pendingAlertIds.push(alertId);
+  }
   item.innerHTML = `
     <span class="sev-badge ${sevClass}">${data.severity}</span>
     <span class="alert-msg">${data.message}</span>
@@ -592,26 +597,43 @@ function addAlert(data) {
     <button class="ack-btn" onclick="acknowledgeAlert('${data.alert_id}',this)">✓</button>`;
   alertList.insertBefore(item, alertList.firstChild);
   playAlertBeep(data.severity);
-  while (alertList.children.length > 50) alertList.removeChild(alertList.lastChild);
+  while (alertList.children.length > 50) {
+    const oldest = alertList.lastChild;
+    if (oldest.classList.contains('alert-item')) {
+      const removedId = oldest.id.replace(/^alert-/, '');
+      pendingAlertIds = pendingAlertIds.filter(id => id !== removedId);
+    }
+    alertList.removeChild(oldest);
+  }
 }
 
 function acknowledgeAlert(alertId, btn) {
+  if (!alertId) return;
+  alertId = String(alertId);
   stopAlertBeeps();
   socket.emit('alert_responded', { alert_id: alertId });
-  btn.closest('.alert-item').style.opacity = '0.5';
-  btn.textContent = '✓ OK'; btn.disabled = true;
-  if (lastEmergencyAlertId === alertId) emergencyModal.style.display = 'none';
+  pendingAlertIds = pendingAlertIds.filter(id => id !== alertId);
+  const alertItem = document.getElementById('alert-' + alertId);
+  const ackButton = btn || (alertItem && alertItem.querySelector('.ack-btn'));
+  if (alertItem) alertItem.style.opacity = '0.5';
+  if (ackButton) {
+    ackButton.textContent = '✓ OK';
+    ackButton.disabled = true;
+  }
+  if (String(lastEmergencyAlertId) === alertId) emergencyModal.style.display = 'none';
 }
 
 function acknowledgeEmergency() {
-  stopAlertBeeps();
-  if (lastEmergencyAlertId) socket.emit('alert_responded', { alert_id: lastEmergencyAlertId });
+  if (lastEmergencyAlertId) acknowledgeAlert(lastEmergencyAlertId);
   emergencyModal.style.display = 'none';
 }
 
 function clearAlerts(listId) {
   const list = document.getElementById(listId);
   if (!list) return;
+  const removedIds = Array.from(list.querySelectorAll('.alert-item'))
+    .map(item => item.id.replace(/^alert-/, ''));
+  pendingAlertIds = pendingAlertIds.filter(id => !removedIds.includes(id));
   list.innerHTML = `<div class="no-alerts">${listId === 'interiorAlertList' ? 'No driver warnings' : 'No road warnings'}</div>`;
 }
 

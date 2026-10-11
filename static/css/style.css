@@ -184,7 +184,7 @@ html, body {
 }
 #statusLabel { font-family: var(--font-head); font-size: 14px; letter-spacing: 1px; }
 
-.control-buttons { display: flex; gap: 8px; }
+.control-buttons { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
 .btn {
   padding: 8px 22px;
   font-family: var(--font-head); font-size: 14px;

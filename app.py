@@ -771,6 +771,11 @@ def on_connect():
     emit('monitoring_state', {'active': monitoring_active})
 
 
+@socketio.on('disconnect')
+def on_disconnect():
+    pass
+
+
 @socketio.on('browser_frame')
 def on_browser_frame(data):
     global browser_frame_times, browser_worker_thread
