@@ -290,5 +290,11 @@
     canSpeak
       ? 'Voice assistant is off. Click to enable spoken alerts and voice acknowledgement.'
       : 'Speech synthesis is unavailable. Voice acknowledgement may still work after enabling with a supported browser.');
-  window.VoiceAssistant = { onAlert, onAcknowledged, onCancelled, onEscalation };
+  window.VoiceAssistant = {
+    onAlert,
+    onAcknowledged,
+    onCancelled,
+    onEscalation,
+    isSafetyAlertActive: () => Boolean(enabled && activeAlert),
+  };
 })();

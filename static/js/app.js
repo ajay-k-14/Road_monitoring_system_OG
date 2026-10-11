@@ -624,6 +624,7 @@ function updateIndicator(key, active, critical) {
 function addAlert(data) {
   const alertId = data.alert_id == null ? '' : String(data.alert_id);
   if (!alertId || document.getElementById('alert-' + alertId)) return;
+  if (window.NavigationAssistant) window.NavigationAssistant.onSafetyAlert();
   const source = data.source === 'EXTERIOR' ? 'EXTERIOR' : 'INTERIOR';
   const alertList = source === 'EXTERIOR' ? exteriorAlertList : interiorAlertList;
   if (!alertList) return;

@@ -86,6 +86,38 @@ application by the assistant. If recognition is unavailable or permission is
 denied, spoken warnings, dashboard alerts, beep, acknowledgement buttons, and
 SMS escalation remain available.
 
+### GPS turn-by-turn navigation
+
+Open **MAP**, select a destination from the location suggestions, then choose
+**START NAVIGATION**. The browser asks for location permission on start; the
+feature uses GPS only while navigation is active and **STOP NAVIGATION** releases
+its location watcher. **USE CURRENT GPS** can also set the route origin for
+**SHOW ROUTE**. GPS access requires HTTPS or `localhost`; allow location access
+for this site and enable the device's location services.
+
+The map uses OpenStreetMap tiles and Nominatim location search with OSRM's
+public driving router. Route guidance includes turn instructions, GPS progress,
+estimated remaining distance/time, arrival detection, and off-route rerouting.
+Voice guidance can be muted independently from the safety-alert voice assistant.
+Navigation estimates do not include live traffic, and public OSM/OSRM services
+are best-effort services without an availability guarantee; use them
+respectfully and retry later if unavailable. A routing failure during rerouting
+leaves the last valid route visible. This feature adds no server-side route or
+off-route reporting and does not trigger emergency SMS; existing monitoring
+location sharing and emergency workflows remain unchanged.
+
+To try it locally on Windows, run the app from the VS Code terminal:
+
+```powershell
+.\.venv\Scripts\python.exe app.py
+```
+
+Open `http://localhost:5000`, sign in, open **MAP**, choose a destination, and
+press **START NAVIGATION**. For Windows device testing, allow location access
+for the browser in Windows privacy settings and the browser site-permission
+prompt. A desktop may provide coarse or no GPS; a phone or GPS-enabled device
+usually provides better fixes. Use **STOP NAVIGATION** to release tracking.
+
 ### Emergency SMS configuration
 
 Add these environment variables before starting the app:

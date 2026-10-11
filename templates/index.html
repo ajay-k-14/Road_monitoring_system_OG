@@ -4,7 +4,7 @@
 {% block extra_head %}
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
       integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
-<link rel="stylesheet" href="{{ url_for('static', filename='css/navigation.css', v='1') }}"/>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/navigation.css', v='3') }}"/>
 {% endblock %}
 
 {% block content %}
@@ -213,8 +213,27 @@
         </button>
       </div>
 
+      <div class="navigation-actions navigation-driving-actions">
+        <button id="navigationUseGps" class="navigation-action-secondary" type="button">
+          USE CURRENT GPS
+        </button>
+        <button id="navigationStart" class="navigation-action-primary" type="button">
+          START NAVIGATION
+        </button>
+        <button id="navigationStop" class="navigation-action-secondary" type="button" disabled>
+          STOP NAVIGATION
+        </button>
+        <button id="navigationVoice" class="navigation-action-secondary" type="button"
+                aria-pressed="true">
+          VOICE: ON
+        </button>
+      </div>
+
       <p id="navigationStatus" class="navigation-status" role="status" aria-live="polite">
         Search and select both locations to plan a route.
+      </p>
+      <p id="navigationGpsStatus" class="navigation-gps-status" aria-live="polite">
+        GPS: OFF
       </p>
 
       <div id="navigationMap" class="navigation-map"
@@ -222,12 +241,20 @@
 
       <section id="navigationRouteSummary" class="navigation-route-summary" aria-live="polite" hidden>
         <div>
-          <span class="navigation-summary-label">DISTANCE</span>
-          <strong id="navigationDistance">—</strong>
+          <span class="navigation-summary-label">REMAINING</span>
+          <strong id="navigationRemainingDistance">—</strong>
         </div>
         <div>
-          <span class="navigation-summary-label">EST. DURATION</span>
+          <span class="navigation-summary-label">EST. ARRIVAL</span>
           <strong id="navigationDuration">—</strong>
+        </div>
+        <div class="navigation-instruction-summary">
+          <span class="navigation-summary-label">NEXT INSTRUCTION</span>
+          <strong id="navigationInstruction">Plan a route to begin.</strong>
+        </div>
+        <div>
+          <span class="navigation-summary-label">TURN IN</span>
+          <strong id="navigationTurnDistance">—</strong>
         </div>
       </section>
 
@@ -270,9 +297,9 @@
 
 {% block scripts %}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.5/socket.io.min.js"></script>
-<script src="{{ url_for('static', filename='js/app.js', v='17') }}"></script>
-<script src="{{ url_for('static', filename='js/voice-assistant.js', v='9') }}"></script>
+<script src="{{ url_for('static', filename='js/app.js', v='18') }}"></script>
+<script src="{{ url_for('static', filename='js/voice-assistant.js', v='10') }}"></script>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
         integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
-<script src="{{ url_for('static', filename='js/navigation.js', v='1') }}"></script>
+<script src="{{ url_for('static', filename='js/navigation.js', v='3') }}"></script>
 {% endblock %}
