@@ -181,7 +181,7 @@ If cameras are unavailable, the system runs in **demo mode** with simulated data
 ```
 Risk Detected → Audio beep + Visual overlay on dashboard
       ↓
-   No response within 10 seconds
+   No response within 20 seconds
       ↓
 Emergency SMS → All saved emergency contacts 
 ```
