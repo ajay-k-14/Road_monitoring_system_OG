@@ -86,6 +86,7 @@ function createDashboard(options = {}) {
   const clearedWatchers = [];
   const requests = [];
   const mapViews = [];
+  let fitBoundsCount = 0;
   let nextWatcherId = 1;
   let clock = Date.now();
 
@@ -112,7 +113,7 @@ function createDashboard(options = {}) {
         return this;
       },
       invalidateSize() {},
-      fitBounds() {},
+      fitBounds() { fitBoundsCount += 1; },
       removeLayer() {},
     };
   }
@@ -266,6 +267,7 @@ function createDashboard(options = {}) {
     clearedWatchers,
     requests,
     mapViews,
+    get fitBoundsCount() { return fitBoundsCount; },
     setTime: value => { clock = value; },
     emitPosition(id, longitude, latitude = 0) {
       const watcher = watchers.get(id);
@@ -323,6 +325,7 @@ test('starts navigation with GPS, follows route steps, deduplicates guidance, an
   await dashboard.elements.get('navigationStop').click();
   assert.equal(dashboard.watchers.size, 0);
   assert.deepEqual(dashboard.clearedWatchers, [watcherId]);
+  assert.equal(dashboard.fitBoundsCount, 1);
 });
 
 test('uses the selected FROM location as the route origin when starting navigation', async () => {

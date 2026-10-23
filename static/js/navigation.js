@@ -674,6 +674,9 @@
       isRouting = false;
       showRouteButton.disabled = false;
     }
+    if (showMessage && wasNavigating && map && routeLayer) {
+      map.fitBounds(routeLayer.getBounds(), { padding: [30, 30], maxZoom: 15 });
+    }
     stopButton.disabled = true;
     gpsStatus.textContent = latestPosition
       ? `GPS: LAST FIX ${latestPosition.lat.toFixed(5)}, ${latestPosition.lon.toFixed(5)} · ±${Math.round(latestPosition.accuracy)} m · ${new Date(latestPosition.timestamp).toLocaleTimeString()}`
