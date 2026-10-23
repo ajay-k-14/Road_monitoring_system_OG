@@ -335,7 +335,10 @@ test('uses the selected FROM location as the route origin when starting navigati
   const routeRequest = dashboard.requests.find(url => url.includes('/route/v1/'));
   assert.match(routeRequest, /\/driving\/0\.005,0;0\.01,0\?/);
   assert.equal(dashboard.elements.get('navigationFrom').value, 'Test origin');
-  assert.deepEqual(dashboard.mapViews.at(-1), { center: [0, 0.005], zoom: 15 });
+  const mapView = dashboard.mapViews[dashboard.mapViews.length - 1];
+  assert.equal(mapView.center[0], 0);
+  assert.equal(mapView.center[1], 0.005);
+  assert.equal(mapView.zoom, 15);
   assert.equal(dashboard.watchers.size, 1);
 });
 
