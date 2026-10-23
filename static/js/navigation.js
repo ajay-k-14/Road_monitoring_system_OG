@@ -57,6 +57,7 @@
   let previousFocus = null;
   let isRouting = false;
   let isNavigating = false;
+  let navigationUsesSelectedOrigin = false;
   let navigationWatchId = null;
   let routeSteps = [];
   let currentStepIndex = 0;
@@ -645,6 +646,11 @@
     };
     gpsStatus.textContent = `GPS: ${messages[error.code] || 'Location error.'}`;
     if (error.code === 1 || error.code === 2) {
+      if (isNavigating && navigationUsesSelectedOrigin) {
+        gpsStatus.textContent = `GPS: ${messages[error.code]} Navigation continues from the selected start without live GPS updates.`;
+        setStatus('Navigation continues from the selected starting location, but live GPS progress is unavailable.', 'error');
+        return;
+      }
       stopNavigation(false);
       gpsStatus.textContent = `GPS: ${messages[error.code]}`;
       setStatus(messages[error.code], 'error');
@@ -660,6 +666,7 @@
   function stopNavigation(showMessage = true) {
     const wasNavigating = isNavigating;
     isNavigating = false;
+    navigationUsesSelectedOrigin = false;
     releaseLocationWatcher();
     if (wasNavigating && isRouting && routeController) {
       routeController.abort();
@@ -723,57 +730,84 @@
 
   async function startNavigation() {
     if (isNavigating || isRouting) return;
-    if (!navigator.geolocation) {
-      gpsStatus.textContent = 'GPS: UNAVAILABLE';
-      setStatus('This browser does not support GPS location.', 'error');
-      return;
-    }
-    if (!window.isSecureContext) {
-      gpsStatus.textContent = 'GPS: REQUIRES HTTPS OR LOCALHOST';
-      setStatus('GPS requires HTTPS or localhost. Open the dashboard in a secure context.', 'error');
-      return;
-    }
     if (!locations.to) {
       setStatus('Select a destination before starting navigation.', 'error');
       return;
     }
+    const selectedOrigin = locations.from;
+    if (!selectedOrigin && !navigator.geolocation) {
+      gpsStatus.textContent = 'GPS: UNAVAILABLE';
+      setStatus('This browser does not support GPS location. Select a starting location to navigate without GPS.', 'error');
+      return;
+    }
+    if (!selectedOrigin && !window.isSecureContext) {
+      gpsStatus.textContent = 'GPS: REQUIRES HTTPS OR LOCALHOST';
+      setStatus('GPS requires HTTPS or localhost. Select a starting location to navigate without GPS, or open the dashboard in a secure context.', 'error');
+      return;
+    }
     ensureMap();
     if (!map) return;
-    gpsStatus.textContent = 'GPS: REQUESTING PERMISSION';
-    setStatus('Requesting location permission and a current GPS fix…', 'loading');
+    if (!selectedOrigin) {
+      gpsStatus.textContent = 'GPS: REQUESTING PERMISSION';
+      setStatus('Requesting location permission and a current GPS fix…', 'loading');
+    }
     startButton.disabled = true;
     let controller = null;
     try {
-      const parsed = parsePosition(await getCurrentPosition(), true);
-      if (!parsed) throw new Error('GPS fix is too old or inaccurate. Try again with a clearer signal.');
-      latestPosition = parsed;
-      const origin = { lat: parsed.lat, lon: parsed.lon, name: 'Current GPS position' };
-      locations.from = origin;
-      fromInput.value = origin.name;
-      setStatus('Calculating a driving route from your current location…', 'loading');
+      let parsed = null;
+      if (!selectedOrigin) {
+        parsed = parsePosition(await getCurrentPosition(), true);
+        if (!parsed) throw new Error('GPS fix is too old or inaccurate. Try again with a clearer signal.');
+        latestPosition = parsed;
+      } else {
+        latestPosition = null;
+      }
+      const origin = selectedOrigin || {
+        lat: parsed.lat,
+        lon: parsed.lon,
+        name: 'Current GPS position',
+      };
+      if (!selectedOrigin) {
+        locations.from = origin;
+        fromInput.value = origin.name;
+      }
+      setStatus(`Calculating a driving route from ${origin.name}…`, 'loading');
       controller = new AbortController();
       routeController = controller;
       isRouting = true;
       const route = await requestRoute(origin, locations.to, controller);
       if (routeController !== controller) return;
-      applyRoute(route, origin, locations.to);
+      applyRoute(route, origin, locations.to, false);
+      map.setView([origin.lat, origin.lon], 15);
       routeController = null;
       isRouting = false;
       isNavigating = true;
+      navigationUsesSelectedOrigin = Boolean(selectedOrigin);
       stopButton.disabled = false;
-      latestPosition = parsed;
-      updateVehicleMarker(parsed);
-      gpsStatus.textContent =
-        `GPS: ACTIVE · ${parsed.lat.toFixed(5)}, ${parsed.lon.toFixed(5)} · ±${Math.round(parsed.accuracy)} m · ${new Date(parsed.timestamp).toLocaleTimeString()}`;
-      speakGuidance('Navigation started.');
-      const arrived = advanceNavigation(parsed);
-      if (!arrived) {
+      if (parsed) {
+        latestPosition = parsed;
+        updateVehicleMarker(parsed);
+        gpsStatus.textContent =
+          `GPS: ACTIVE · ${parsed.lat.toFixed(5)}, ${parsed.lon.toFixed(5)} · ±${Math.round(parsed.accuracy)} m · ${new Date(parsed.timestamp).toLocaleTimeString()}`;
+      } else {
+        gpsStatus.textContent = navigator.geolocation && window.isSecureContext
+          ? 'GPS: WAITING FOR AN ACCURATE FIX · using selected starting location'
+          : 'GPS: UNAVAILABLE · using selected starting location';
+      }
+      speakGuidance(parsed ? 'Navigation started.' : 'Navigation started from your selected starting location.');
+      const arrived = parsed ? advanceNavigation(parsed) : false;
+      if (!arrived && navigator.geolocation && window.isSecureContext) {
         navigationWatchId = navigator.geolocation.watchPosition(
           handleGpsPosition,
           handleGpsError,
           { enableHighAccuracy: true, maximumAge: 3000, timeout: 15000 },
         );
-        setStatus('Navigating. Duration is an estimate and does not include live traffic.', 'success');
+        setStatus(parsed
+          ? 'Navigating. Duration is an estimate and does not include live traffic.'
+          : 'Navigation started from the selected location. Waiting for an accurate GPS fix for live progress.',
+        'success');
+      } else if (!arrived) {
+        setStatus('Navigation started from the selected location. Live GPS progress is unavailable.', 'success');
       }
     } catch (error) {
       const routeRequestWasActive = controller && routeController === controller;

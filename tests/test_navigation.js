@@ -85,6 +85,7 @@ function createDashboard(options = {}) {
   const watchers = new Map();
   const clearedWatchers = [];
   const requests = [];
+  const mapViews = [];
   let nextWatcherId = 1;
   let clock = Date.now();
 
@@ -106,7 +107,10 @@ function createDashboard(options = {}) {
 
   function mapObject() {
     return {
-      setView() { return this; },
+      setView(center, zoom) {
+        mapViews.push({ center, zoom });
+        return this;
+      },
       invalidateSize() {},
       fitBounds() {},
       removeLayer() {},
@@ -229,12 +233,15 @@ function createDashboard(options = {}) {
     fetch: async url => {
       requests.push(String(url));
       if (String(url).startsWith('https://nominatim.openstreetmap.org/')) {
+        const query = new URL(url).searchParams.get('q');
         return {
           ok: true,
           json: async () => [{
             lat: '0',
-            lon: options.destinationLon || '0.01',
-            display_name: 'Test destination',
+            lon: query === 'Test origin'
+              ? options.originLon || '0'
+              : options.destinationLon || '0.01',
+            display_name: query === 'Test origin' ? 'Test origin' : 'Test destination',
           }],
         };
       }
@@ -258,6 +265,7 @@ function createDashboard(options = {}) {
     watchers,
     clearedWatchers,
     requests,
+    mapViews,
     setTime: value => { clock = value; },
     emitPosition(id, longitude, latitude = 0) {
       const watcher = watchers.get(id);
@@ -274,6 +282,15 @@ function createDashboard(options = {}) {
       await new Promise(resolve => setTimeout(resolve, 600));
       const suggestion = elements.get('navigationToSuggestions').children[0];
       assert.ok(suggestion, 'destination suggestion should be displayed');
+      await suggestion.children[0].click();
+    },
+    async chooseStartingLocation() {
+      const input = elements.get('navigationFrom');
+      input.value = 'Test origin';
+      await input.dispatch('input');
+      await new Promise(resolve => setTimeout(resolve, 600));
+      const suggestion = elements.get('navigationFromSuggestions').children[0];
+      assert.ok(suggestion, 'starting location suggestion should be displayed');
       await suggestion.children[0].click();
     },
   };
@@ -306,6 +323,53 @@ test('starts navigation with GPS, follows route steps, deduplicates guidance, an
   await dashboard.elements.get('navigationStop').click();
   assert.equal(dashboard.watchers.size, 0);
   assert.deepEqual(dashboard.clearedWatchers, [watcherId]);
+});
+
+test('uses the selected FROM location as the route origin when starting navigation', async () => {
+  const dashboard = createDashboard({ originLon: '0.005' });
+  await dashboard.chooseStartingLocation();
+  dashboard.setTime(Date.now() + 1101);
+  await dashboard.chooseDestination();
+  await dashboard.elements.get('navigationStart').click();
+
+  const routeRequest = dashboard.requests.find(url => url.includes('/route/v1/'));
+  assert.match(routeRequest, /\/driving\/0\.005,0;0\.01,0\?/);
+  assert.equal(dashboard.elements.get('navigationFrom').value, 'Test origin');
+  assert.deepEqual(dashboard.mapViews.at(-1), { center: [0, 0.005], zoom: 15 });
+  assert.equal(dashboard.watchers.size, 1);
+});
+
+test('starts from the selected location when GPS is inaccurate and keeps navigation active if GPS is denied', async () => {
+  const dashboard = createDashboard({ originLon: '0.005', gpsAccuracy: 58000 });
+  await dashboard.chooseStartingLocation();
+  dashboard.setTime(Date.now() + 1101);
+  await dashboard.chooseDestination();
+  await dashboard.elements.get('navigationStart').click();
+
+  assert.match(dashboard.elements.get('navigationStatus').textContent, /waiting for an accurate GPS fix/i);
+  assert.match(dashboard.elements.get('navigationGpsStatus').textContent, /using selected starting location/i);
+  assert.equal(dashboard.watchers.size, 1);
+  const watcher = dashboard.watchers.get([...dashboard.watchers.keys()][0]);
+  watcher.failure({ code: 1, message: 'permission denied' });
+  assert.equal(dashboard.elements.get('navigationStop').disabled, false);
+  assert.match(dashboard.elements.get('navigationStatus').textContent, /continues from the selected starting location/i);
+});
+
+test('starts from a selected location without geolocation support or a secure context', async () => {
+  const unsupported = createDashboard({ geolocation: false });
+  await unsupported.chooseStartingLocation();
+  unsupported.setTime(Date.now() + 1101);
+  await unsupported.chooseDestination();
+  await unsupported.elements.get('navigationStart').click();
+  assert.match(unsupported.elements.get('navigationStatus').textContent, /live GPS progress is unavailable/i);
+  assert.match(unsupported.requests.find(url => url.includes('/route/v1/')), /\/driving\/0,0;0\.01,0\?/);
+
+  const insecure = createDashboard({ secureContext: false });
+  await insecure.chooseStartingLocation();
+  insecure.setTime(Date.now() + 1101);
+  await insecure.chooseDestination();
+  await insecure.elements.get('navigationStart').click();
+  assert.match(insecure.elements.get('navigationStatus').textContent, /live GPS progress is unavailable/i);
 });
 
 test('reports denied GPS and does not start navigation', async () => {

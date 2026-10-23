@@ -89,9 +89,12 @@ SMS escalation remain available.
 ### GPS turn-by-turn navigation
 
 Open **MAP**, select a destination from the location suggestions, then choose
-**START NAVIGATION**. The browser asks for location permission on start; the
-feature uses GPS only while navigation is active and **STOP NAVIGATION** releases
-its location watcher. **USE CURRENT GPS** can also set the route origin for
+**START NAVIGATION**. If a starting location is selected in **FROM**, navigation
+uses it as the route origin and starts even if GPS is stale or inaccurate;
+GPS is used for live progress when an accurate fix becomes available. Without
+a selected starting location, a fresh GPS fix is required to start. GPS tracking
+runs only while navigation is active, and **STOP NAVIGATION** releases its
+location watcher. **USE CURRENT GPS** can also set the route origin for
 **SHOW ROUTE**. GPS access requires HTTPS or `localhost`; allow location access
 for this site and enable the device's location services.
 
