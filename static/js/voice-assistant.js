@@ -12,6 +12,7 @@
   let recognition = null;
   let unavailable = false;
   let enabled = false;
+  let microphoneReady = false;
 
   function setStatus(state, title) {
     if (!statusElement) return;
@@ -33,6 +34,7 @@
     if (enabled) {
       enabled = false;
       unavailable = false;
+      microphoneReady = false;
       finishActiveAlert(null);
       setStatus(canSpeak ? 'ready' : 'unavailable',
         'Voice assistant is off. Click to turn it on.');
@@ -72,13 +74,15 @@
     try {
       stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       unavailable = false;
+      microphoneReady = true;
       setStatus('ready',
-        'Voice assistant is on. It announces alerts and listens only while an alert is active. Click to turn it off.');
-      if (activeAlert && activeAlert.announcementDone) {
+        'Voice assistant is on. It listens during alert announcements and while an alert is active. Click to turn it off.');
+      if (activeAlert) {
         startRecognition(activeAlert.id, generation);
       }
     } catch (error) {
       unavailable = true;
+      microphoneReady = false;
       const message = error && (error.name === 'NotAllowedError' ||
         error.name === 'PermissionDeniedError')
         ? 'Spoken safety warnings are enabled, but microphone permission was denied. Allow mic access in browser site settings, then turn voice input on again.'
@@ -99,6 +103,7 @@
 
   function isAcknowledgement(transcript) {
     const words = normalizeTranscript(transcript).split(' ').filter(Boolean);
+    if (words.some(word => word.startsWith('acknowledg'))) return true;
     return acknowledgementPhrases.some(phrase => {
       const phraseWords = phrase.split(' ');
       for (let start = 0; start <= words.length - phraseWords.length; start += 1) {
@@ -174,6 +179,7 @@
 
   function startRecognition(alertId, currentGeneration) {
     if (!activeAlert || activeAlert.id !== alertId || generation !== currentGeneration) return;
+    if (!microphoneReady) return;
     if (!enabled || !canListen) {
       unavailable = true;
       setStatus('unavailable',
@@ -247,21 +253,15 @@
 
     finishActiveAlert(null);
     unavailable = false;
-    activeAlert = { id: alertId, announcementDone: false };
+    activeAlert = { id: alertId };
     const currentGeneration = generation;
     const message = warningFor(alert);
 
+    startRecognition(alertId, currentGeneration);
     if (canSpeak) {
-      speak(message, () => {
-        if (!activeAlert || activeAlert.id !== alertId ||
-            generation !== currentGeneration) return;
-        activeAlert.announcementDone = true;
-        startRecognition(alertId, currentGeneration);
-      });
+      speak(message);
     } else {
       setStatus('unavailable', 'Speech synthesis is unavailable in this browser.');
-      activeAlert.announcementDone = true;
-      if (enabled) startRecognition(alertId, currentGeneration);
     }
   }
 

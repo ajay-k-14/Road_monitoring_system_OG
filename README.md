@@ -72,7 +72,8 @@ use its HTTPS URL and keep the app bound to `0.0.0.0`.
 ### Voice alert acknowledgement
 
 On the dashboard, the browser's Web Speech API speaks each new safety alert and
-listens for **“DRMS”**, **“Acknowledge”**, **“I accept”**, or **“DRMS, I accept”**
+listens for **“DRMS”**, **“Acknowledge”** (including recognized forms such as
+“acknowledged”), **“I accept”**, or **“DRMS, I accept”**
 while that alert is active. Click **VOICE: ENABLE** in the dashboard to grant microphone
 permission; browsers require this explicit user action before allowing voice
 recognition. The permission check stops its temporary microphone stream

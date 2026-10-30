@@ -665,12 +665,20 @@ function acknowledgeAlert(alertId, btnOrSource) {
   pendingAlertIds = pendingAlertIds.filter(id => id !== alertId);
   if (window.VoiceAssistant) window.VoiceAssistant.onAcknowledged(alertId, source);
   const alertItem = document.getElementById('alert-' + alertId);
-  const ackButton = (btnOrSource instanceof HTMLElement ? btnOrSource : null) ||
-    (alertItem && alertItem.querySelector('.ack-btn'));
-  if (alertItem) alertItem.style.opacity = '0.5';
-  if (ackButton) {
-    ackButton.textContent = '✓ OK';
-    ackButton.disabled = true;
+  if (source === 'voice' && alertItem) {
+    const alertList = alertItem.parentElement;
+    alertItem.remove();
+    if (alertList && !alertList.querySelector('.alert-item')) {
+      alertList.innerHTML = `<div class="no-alerts">${alertList === interiorAlertList ? 'No driver warnings' : 'No road warnings'}</div>`;
+    }
+  } else {
+    const ackButton = (btnOrSource instanceof HTMLElement ? btnOrSource : null) ||
+      (alertItem && alertItem.querySelector('.ack-btn'));
+    if (alertItem) alertItem.style.opacity = '0.5';
+    if (ackButton) {
+      ackButton.textContent = '✓ OK';
+      ackButton.disabled = true;
+    }
   }
   if (String(lastEmergencyAlertId) === alertId) emergencyModal.style.display = 'none';
 }

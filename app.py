@@ -8,6 +8,8 @@ import base64
 import threading
 import time
 import os
+import math
+import numbers
 from flask import Flask, render_template, request, redirect, url_for, session, jsonify
 from flask_socketio import SocketIO, emit
 from flask_login import LoginManager
@@ -178,8 +180,15 @@ def load_user(user_id):
 # ─────────────────────────────────────────────
 def normalize_camera_pair(interior_src, exterior_src):
     """Ensure the two configured sources are distinct while preserving the old logic."""
-    if interior_src == exterior_src and isinstance(interior_src, int):
-        return interior_src, exterior_src + 1
+    if isinstance(interior_src, bool) or isinstance(exterior_src, bool):
+        return interior_src, exterior_src
+    if interior_src == exterior_src:
+        if isinstance(interior_src, numbers.Integral):
+            return int(interior_src), int(exterior_src) + 1
+        if isinstance(interior_src, numbers.Real):
+            value = float(interior_src)
+            if math.isfinite(value) and value.is_integer():
+                return int(value), int(float(exterior_src)) + 1
     return interior_src, exterior_src
 
 
@@ -215,10 +224,16 @@ def _parse_src(v):
     if isinstance(v, bool):
         return None
 
-    if isinstance(v, (int, float)):
-        if not math.isfinite(v) or v < 0:
+    if isinstance(v, numbers.Integral):
+        if v < 0:
             return None
         return int(v)
+
+    if isinstance(v, numbers.Real):
+        value = float(v)
+        if not math.isfinite(value) or value < 0:
+            return None
+        return int(value)
 
     if isinstance(v, str):
         s = v.strip()
