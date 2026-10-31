@@ -2,6 +2,7 @@ from collections import deque
 
 import cv2
 import numpy as np
+import pytest
 
 from config import Config
 from modules.road_monitor import RoadMonitor
@@ -60,3 +61,19 @@ def test_no_lane_lines_does_not_report_lane_deviation():
     assert not results['lane_detected']
     assert not results['lane_deviation']
     assert results['deviation_pct'] == 0.0
+
+
+@pytest.mark.parametrize('nested_lines', [False, True])
+def test_lane_detection_accepts_opencv_line_output_shapes(monkeypatch, nested_lines):
+    lines = np.array([
+        [170, 470, 270, 280],
+        [470, 470, 370, 280],
+    ], dtype=np.int32)
+    if nested_lines:
+        lines = lines[:, np.newaxis, :]
+    monkeypatch.setattr(cv2, 'HoughLinesP', lambda *args, **kwargs: lines)
+
+    results = _detect(np.zeros((480, 640, 3), dtype=np.uint8))
+
+    assert results['lane_detected']
+    assert results['_left_xs'] and results['_right_xs']

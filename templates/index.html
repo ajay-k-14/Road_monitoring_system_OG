@@ -116,6 +116,9 @@
       <div class="cam-frame-wrap">
         <img id="exteriorFeed" class="cam-feed" alt="Exterior Camera Feed"
              style="background:#05050d;"/>
+        <video id="exteriorLiveFeed" class="cam-feed cam-live-feed" autoplay playsinline muted
+               aria-label="Live exterior camera feed"></video>
+        <canvas id="exteriorOverlay" class="cam-overlay" aria-hidden="true"></canvas>
       </div>
       <div class="indicator-row">
         <div class="indicator" id="ind-lane"><div class="ind-dot"></div><span>LANE DEV</span></div>
@@ -297,7 +300,7 @@
 
 {% block scripts %}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.5/socket.io.min.js"></script>
-<script src="{{ url_for('static', filename='js/app.js', v='19') }}"></script>
+<script src="{{ url_for('static', filename='js/app.js', v='21') }}"></script>
 <script src="{{ url_for('static', filename='js/voice-assistant.js', v='12') }}"></script>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
         integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>

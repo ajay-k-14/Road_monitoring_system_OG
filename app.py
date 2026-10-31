@@ -80,6 +80,21 @@ def log_debug(msg):
     debug_logs.append(f"{time.strftime('%H:%M:%S')} {msg}")
 
 
+def _sanitize_json(obj):
+    if isinstance(obj, dict):
+        return {str(key): _sanitize_json(value) for key, value in obj.items()
+                if not str(key).startswith('_')}
+    if isinstance(obj, (list, tuple)):
+        return [_sanitize_json(value) for value in obj]
+    if isinstance(obj, np.ndarray):
+        return _sanitize_json(obj.tolist())
+    if isinstance(obj, np.generic):
+        return obj.item()
+    if isinstance(obj, (str, int, float, bool)) or obj is None:
+        return obj
+    return str(obj)
+
+
 def _process_browser_frame(frame_b64, side):
     """Decode a browser-captured JPEG and run server-side AI analysis."""
     global interior_frame_bytes, exterior_frame_bytes
@@ -114,9 +129,9 @@ def _process_browser_frame(frame_b64, side):
             'exterior': exterior_frame_bytes or '',
         })
         socketio.emit('status_update', {
-            'driver': driver_results,
+            'driver': _sanitize_json(driver_results),
             'road': {'camera_signal': False},
-            'alerts': alerts,
+            'alerts': _sanitize_json(alerts),
             'fps': float(driver_monitor.fps),
             'caps': {'interior_ok': True, 'exterior_ok': bool(exterior_frame_bytes)},
         })
@@ -134,8 +149,10 @@ def _process_browser_frame(frame_b64, side):
         })
         socketio.emit('status_update', {
             'driver': {'sleeping': False, 'drowsy': False},
-            'road': road_results,
-            'alerts': alert_system.evaluate({'sleeping': False, 'drowsy': False}, road_results),
+            'road': _sanitize_json(road_results),
+            'alerts': _sanitize_json(
+                alert_system.evaluate({'sleeping': False, 'drowsy': False}, road_results)
+            ),
             'fps': float(driver_monitor.fps),
             'caps': {'interior_ok': bool(interior_frame_bytes), 'exterior_ok': True},
         })
@@ -463,20 +480,6 @@ def monitoring_loop(interior_src=0, exterior_src=1):
             Config.MAX_FRAME_WIDTH,
             max(1, int(frame.shape[0] * scale)),
         ), interpolation=cv2.INTER_AREA)
-
-    def _sanitize_json(obj):
-        if isinstance(obj, dict):
-            return {str(k): _sanitize_json(v) for k, v in obj.items()
-                    if not str(k).startswith('_')}
-        if isinstance(obj, (list, tuple)):
-            return [_sanitize_json(v) for v in obj]
-        if isinstance(obj, np.ndarray):
-            return _sanitize_json(obj.tolist())
-        if isinstance(obj, (np.integer, np.floating)):
-            return obj.item()
-        if isinstance(obj, (str, int, float, bool)) or obj is None:
-            return obj
-        return str(obj)
 
     while monitoring_active:
         wait_for = process_interval - (time.monotonic() - last_cycle_at)

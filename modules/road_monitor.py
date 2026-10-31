@@ -75,6 +75,8 @@ class RoadMonitor:
         h, w = frame.shape[:2]
         results = {
             'camera_signal':       bool(input_valid),
+            'frame_width':         w,
+            'frame_height':        h,
             'road_detected':       False,
             'lane_detected':       False,
             'lane_deviation':       False,
@@ -240,7 +242,10 @@ class RoadMonitor:
         candidates = {'left': [], 'right': []}
         if lines is not None:
             for line in lines:
-                x1, y1, x2, y2 = line[0]
+                coordinates = np.asarray(line).reshape(-1)
+                if coordinates.size != 4:
+                    continue
+                x1, y1, x2, y2 = coordinates
                 if x2 == x1:
                     continue
                 slope = (y2 - y1) / (x2 - x1)

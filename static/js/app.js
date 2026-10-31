@@ -19,6 +19,30 @@ const socket = io({ transports: ['websocket', 'polling'] });
 
 const interiorFeed    = document.getElementById('interiorFeed');
 const exteriorFeed    = document.getElementById('exteriorFeed');
+const exteriorFrame = exteriorFeed ? exteriorFeed.parentElement : null;
+const exteriorLiveFeed = document.getElementById('exteriorLiveFeed') || document.createElement('video');
+const exteriorOverlay = document.getElementById('exteriorOverlay') || document.createElement('canvas');
+if (!exteriorLiveFeed.id) {
+  exteriorLiveFeed.id = 'exteriorLiveFeed';
+  exteriorLiveFeed.className = 'cam-feed cam-live-feed';
+  exteriorLiveFeed.autoplay = true;
+  exteriorLiveFeed.playsInline = true;
+  exteriorLiveFeed.muted = true;
+  exteriorLiveFeed.setAttribute('aria-label', 'Live exterior camera feed');
+  exteriorLiveFeed.style.display = 'none';
+  if (exteriorFrame) exteriorFrame.appendChild(exteriorLiveFeed);
+}
+if (!exteriorOverlay.id) {
+  exteriorOverlay.id = 'exteriorOverlay';
+  exteriorOverlay.className = 'cam-overlay';
+  exteriorOverlay.setAttribute('aria-hidden', 'true');
+  exteriorOverlay.style.position = 'absolute';
+  exteriorOverlay.style.inset = '0';
+  exteriorOverlay.style.width = '100%';
+  exteriorOverlay.style.height = '100%';
+  exteriorOverlay.style.pointerEvents = 'none';
+  if (exteriorFrame) exteriorFrame.appendChild(exteriorOverlay);
+}
 const statusDot       = document.getElementById('statusDot');
 const statusLabel     = document.getElementById('statusLabel');
 const fpsVal          = document.getElementById('fpsVal');
@@ -61,6 +85,7 @@ let pendingAlertIds = [];
 let previewStream = null;
 let browserCaptureTimers = [];
 let browserCaptureStreams = [];
+let lastRoadOverlay = null;
 let _cameraDeviceIds = [];   // index → deviceId, for preview only
 let browserFrameCount = 0;
 let browserFrameWindowStart = 0;
@@ -186,6 +211,14 @@ function setCameraNote(msg, type) {
                             type === 'warn' ? 'var(--warn)'    : 'var(--text-dim)';
 }
 
+function cameraFailure(kind, error) {
+  const detail = error instanceof Error ? error.message : String(error);
+  const failure = new Error(detail);
+  failure.name = error && error.name ? error.name : 'Error';
+  failure.cameraKind = kind;
+  return failure;
+}
+
 // ── Preview ───────────────────────────────────────────────────────
 function stopPreviewStream() {
   if (previewStream) { previewStream.getTracks().forEach(t => t.stop()); previewStream = null; }
@@ -195,11 +228,90 @@ function stopPreviewStream() {
 function stopBrowserCapture() {
   browserCaptureTimers.forEach(timer => clearInterval(timer));
   browserCaptureTimers = [];
+  if (exteriorLiveFeed) {
+    exteriorLiveFeed.pause();
+    exteriorLiveFeed.srcObject = null;
+    exteriorLiveFeed.style.display = 'none';
+  }
+  if (exteriorFeed) exteriorFeed.style.display = 'block';
+  lastRoadOverlay = null;
+  clearRoadOverlay();
   browserCaptureStreams.forEach(stream => {
     if (stream && stream.getTracks) stream.getTracks().forEach(track => track.stop());
   });
   browserCaptureStreams = [];
 }
+
+function clearRoadOverlay() {
+  if (!exteriorOverlay) return;
+  const context = exteriorOverlay.getContext('2d');
+  if (context) {
+    context.setTransform(1, 0, 0, 1, 0, 0);
+    context.clearRect(0, 0, exteriorOverlay.width, exteriorOverlay.height);
+  }
+}
+
+function renderRoadOverlay(road) {
+  if (!exteriorOverlay || !exteriorLiveFeed ||
+      !exteriorLiveFeed.srcObject || exteriorLiveFeed.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) {
+    clearRoadOverlay();
+    return;
+  }
+
+  const width = exteriorOverlay.clientWidth;
+  const height = exteriorOverlay.clientHeight;
+  if (!width || !height) return;
+  const ratio = window.devicePixelRatio || 1;
+  exteriorOverlay.width = Math.round(width * ratio);
+  exteriorOverlay.height = Math.round(height * ratio);
+
+  const context = exteriorOverlay.getContext('2d');
+  if (!context) return;
+  context.setTransform(ratio, 0, 0, ratio, 0, 0);
+  context.clearRect(0, 0, width, height);
+
+  const frameWidth = Number(road.frame_width);
+  const frameHeight = Number(road.frame_height);
+  if (!frameWidth || !frameHeight || road.camera_signal !== true) return;
+
+  const scale = Math.max(width / frameWidth, height / frameHeight);
+  const offsetX = (width - frameWidth * scale) / 2;
+  const offsetY = (height - frameHeight * scale) / 2;
+  const point = (x, y) => [offsetX + x * scale, offsetY + y * scale];
+
+  if (road.lane_detected) {
+    const [centerX, bottomY] = point(road.lane_centre_x, frameHeight * 0.96);
+    const [frameCenterX, topY] = point(road.frame_centre_x, frameHeight * 0.86);
+    context.strokeStyle = road.lane_deviation ? '#dc3c00' : '#00c850';
+    context.lineWidth = 3;
+    context.beginPath();
+    context.moveTo(frameCenterX, topY);
+    context.lineTo(centerX, bottomY);
+    context.stroke();
+  }
+
+  const groups = [
+    [road.vehicles_detected, '#00dc00', ''],
+    [road.pedestrians_detected, '#ff6400', 'Person '],
+    [road.obstacles_detected, '#ff3200', 'Obstacle '],
+  ];
+  context.font = '12px sans-serif';
+  context.lineWidth = 2;
+  for (const [objects, color, labelPrefix] of groups) {
+    for (const object of objects || []) {
+      if (!Array.isArray(object.box) || object.box.length !== 4) continue;
+      const [x1, y1] = point(object.box[0], object.box[1]);
+      const [x2, y2] = point(object.box[2], object.box[3]);
+      context.strokeStyle = color;
+      context.fillStyle = color;
+      context.strokeRect(x1, y1, x2 - x1, y2 - y1);
+      context.fillText(`${labelPrefix}${object.label || ''} ${Math.round((object.conf || 0) * 100)}%`,
+        x1, Math.max(12, y1 - 5));
+    }
+  }
+}
+
+window.addEventListener('resize', () => renderRoadOverlay(lastRoadOverlay || {}));
 
 async function previewSelectedCamera(kind) {
   const selectEl     = kind === 'exterior' ? exteriorSrcInput : interiorSrcInput;
@@ -325,8 +437,7 @@ async function openSelectedCamera(kind) {
         audio: false
       });
     } catch (fallbackError) {
-      fallbackError.cameraKind = kind;
-      throw fallbackError;
+      throw cameraFailure(kind, fallbackError);
     }
   }
 }
@@ -334,6 +445,9 @@ async function openSelectedCamera(kind) {
 function startBrowserCameraCapture() {
   const startCapture = async () => {
     try {
+      if (!exteriorFrame || !exteriorFeed) {
+        throw new Error('Exterior camera display container is missing from the dashboard.');
+      }
       stopBrowserCapture();
       const interiorIndex = parseInt(interiorSrcInput.value, 10);
       const exteriorIndex = parseInt(exteriorSrcInput.value, 10);
@@ -344,16 +458,16 @@ function startBrowserCameraCapture() {
       try {
         interiorStream = await openSelectedCamera('interior');
       } catch (err) {
-        err.cameraKind = 'interior';
-        cameraErrors.push(err);
+        const failure = cameraFailure('interior', err);
+        cameraErrors.push(failure);
         console.warn('Interior camera failed:', err);
       }
       if (!sameCamera) {
         try {
           exteriorStream = await openSelectedCamera('exterior');
         } catch (exteriorError) {
-          exteriorError.cameraKind = 'exterior';
-          cameraErrors.push(exteriorError);
+          const failure = cameraFailure('exterior', exteriorError);
+          cameraErrors.push(failure);
           console.warn('Exterior camera failed:', exteriorError);
         }
       } else {
@@ -365,9 +479,10 @@ function startBrowserCameraCapture() {
       }
 
       const interiorVideo = document.createElement('video');
-      const exteriorVideo = document.createElement('video');
+      const exteriorVideo = exteriorLiveFeed;
       interiorVideo.muted = true;
       exteriorVideo.muted = true;
+      exteriorVideo.playsInline = true;
 
       const sendFrame = (video, side) => {
         if (video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) return;
@@ -388,14 +503,27 @@ function startBrowserCameraCapture() {
 
       const startSideCapture = async (video, side, stream) => {
         if (!stream) return false;
-        video.srcObject = stream;
         try {
+          video.srcObject = stream;
+          if (side === 'exterior') {
+            exteriorFeed.style.display = 'none';
+            exteriorLiveFeed.style.display = 'block';
+          }
           await video.play();
+          if (side === 'exterior') {
+            renderRoadOverlay(lastRoadOverlay || {});
+          }
           browserCaptureTimers.push(setInterval(() => sendFrame(video, side), 500));
           return true;
         } catch (err) {
-          err.cameraKind = side;
-          cameraErrors.push(err);
+          const failure = cameraFailure(side, err);
+          cameraErrors.push(failure);
+          if (side === 'exterior') {
+            video.pause();
+            video.srcObject = null;
+            video.style.display = 'none';
+            exteriorFeed.style.display = 'block';
+          }
           console.warn(`${side} camera playback failed:`, err);
           return false;
         }
@@ -419,9 +547,10 @@ function startBrowserCameraCapture() {
       updateBrowserCaptureFps();
     } catch (err) {
       console.error('Browser camera capture failed:', err);
-      const reason = err && err.name ? ` (${err.name})` : '';
+      stopBrowserCapture();
+      const reason = err && err.message ? err.message : String(err);
       const cameraKind = err && err.cameraKind ? `${err.cameraKind} ` : '';
-      setCameraNote(`${cameraKind}camera could not be opened${reason}. Check that it is not used by another app.`, 'warn');
+      setCameraNote(`${cameraKind}camera failed: ${reason}${err && err.name ? ` (${err.name})` : ''}`, 'warn');
     }
   };
 
@@ -498,7 +627,10 @@ socket.on('monitoring_state', d => setMonitoringUI(d.active));
 
 socket.on('frame_update', d => {
   if (d.interior) interiorFeed.src = 'data:image/jpeg;base64,' + d.interior;
-  if (d.exterior) exteriorFeed.src = 'data:image/jpeg;base64,' + d.exterior;
+  if (d.exterior && !exteriorLiveFeed.srcObject) {
+    exteriorFeed.src = 'data:image/jpeg;base64,' + d.exterior;
+    exteriorFeed.style.display = 'block';
+  }
 });
 
 socket.on('status_update', data => {
@@ -516,6 +648,8 @@ socket.on('status_update', data => {
     speed_kmh: 0,
     deviation_pct: 0,
   };
+  lastRoadOverlay = road;
+  renderRoadOverlay(road);
 
   if (data.fps !== undefined) fpsVal.textContent = data.fps;
 

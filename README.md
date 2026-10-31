@@ -155,6 +155,9 @@ Password: demo1234
 
 Edit `app.py` line `monitoring_loop(interior_src=0, exterior_src=1)` to change indices.  
 If cameras are unavailable, the system runs in **demo mode** with simulated data.
+The dashboard displays browser camera video directly for a live exterior view;
+server-side road analysis continues on sampled frames so detection work does not
+delay the displayed feed.
 
 ---
 
